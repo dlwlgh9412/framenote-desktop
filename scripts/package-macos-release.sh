@@ -28,7 +28,7 @@ npm run build:mac-native
 npm run build
 npx electron-builder --mac --universal --dir
 
-codesign --verify --deep --strict --verbose=2 "$packaged_app"
+"$project_root/scripts/verify-macos-bundle.sh" "$packaged_app"
 codesign -d --verbose=4 "$packaged_app" 2>&1 | grep -F "Authority=Developer ID Application:" >/dev/null
 
 mkdir -p "$dmg_root"

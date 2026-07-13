@@ -33,6 +33,11 @@ npx electron-builder --mac --universal --dir --config.mac.identity=null
 ditto --norsrc "$unsigned_app" "$signed_app"
 codesign --force --deep --sign - "$signed_app"
 helper_path="$signed_app/Contents/Resources/bin/minuteframe-audio-capture"
+cursor_policy_path="$signed_app/Contents/Resources/bin/minuteframe-cursor-policy.node"
+codesign \
+  --force \
+  --sign - \
+  "$cursor_policy_path"
 codesign \
   --force \
   --sign - \
