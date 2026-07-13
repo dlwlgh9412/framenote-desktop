@@ -269,9 +269,24 @@ export default function App(): React.JSX.Element {
   }, [])
 
   const changeMode = (mode: CaptureMode): void => {
+    const selectedWindowAudioSupported = selectedSource?.type !== 'window' ||
+      permissions?.selectedApplicationAudioSupported !== false
     const modeDefaults = mode === 'meeting'
-      ? { captureMode: mode, includeSystemAudio: true, includeMicrophone: true }
-      : { captureMode: mode, includeSystemAudio: true, includeMicrophone: false }
+      ? {
+          captureMode: mode,
+          includeSystemAudio: selectedWindowAudioSupported,
+          includeMicrophone: true
+        }
+      : {
+          captureMode: mode,
+          includeSystemAudio: selectedWindowAudioSupported,
+          includeMicrophone: false
+        }
+    if (!selectedWindowAudioSupported) {
+      setAudioWarning(
+        '이 운영체제 버전에서는 선택 앱 소리 분리를 지원하지 않아 시스템 소리를 끈 상태로 적용했습니다.'
+      )
+    }
     void updatePreferences(modeDefaults)
   }
 
@@ -317,6 +332,9 @@ export default function App(): React.JSX.Element {
     dispatch({ type: 'start_requested' })
 
     let controller: RecordingController | null = null
+    let captureStarted = false
+    let systemAudioFailure: Error | null = null
+    let systemAudioFailureHandled = false
 
     try {
       for (let remaining = preferences.countdownSeconds; remaining > 0; remaining -= 1) {
@@ -338,8 +356,23 @@ export default function App(): React.JSX.Element {
           void stopRecordingRef.current()
         },
         onSystemAudioError: (error) => {
+          systemAudioFailure ??= error
           setAudioWarning(`${error.message} 녹화를 종료하고 현재까지의 내용을 저장합니다.`)
-          void stopRecordingRef.current()
+          if (!captureStarted || systemAudioFailureHandled || !controller) return
+          systemAudioFailureHandled = true
+          const failedController = controller
+          dispatch({ type: 'stop' })
+          void failedController.stop()
+            .then((filePath) => {
+              if (controllerRef.current === failedController) controllerRef.current = null
+              if (previewRef.current) previewRef.current.srcObject = null
+              dispatch(filePath
+                ? { type: 'saved', filePath }
+                : { type: 'failed', message: error.message })
+            })
+            .catch((stopError) => {
+              dispatch({ type: 'failed', message: normalizeError(stopError).message })
+            })
         },
         onWriteError: (error) => {
           dispatch({ type: 'failed', message: error.message })
@@ -360,6 +393,8 @@ export default function App(): React.JSX.Element {
         preferences,
         () => previewRef.current
       )
+      if (systemAudioFailure) throw systemAudioFailure
+      captureStarted = true
       setActiveCodec(`${result.codec.extension.toUpperCase()} · ${result.codec.label}`)
       if (preferences.includeSystemAudio && !result.hasSystemAudio) {
         setAudioWarning('시스템 오디오 트랙이 감지되지 않았습니다. 권한을 확인해 주세요.')
@@ -367,6 +402,7 @@ export default function App(): React.JSX.Element {
       dispatch({ type: 'capture_ready' })
     } catch (error) {
       setCountdownRemaining(null)
+      await controller?.abort().catch(() => undefined)
       if (controllerRef.current === controller) controllerRef.current = null
       dispatch({ type: 'failed', message: normalizeError(error).message })
       try {

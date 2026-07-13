@@ -41,6 +41,7 @@ let mainWindow: BrowserWindow | null = null
 let pendingCapture: PrepareCaptureRequest | null = null
 let allowWindowClose = false
 let closePromptOpen = false
+let nativeAudioShutdownStarted = false
 const preferenceStore = new PreferenceStore()
 const fileSink = new RecordingFileSink()
 const nativeSystemAudio = new NativeSystemAudioManager()
@@ -173,7 +174,8 @@ function registerCaptureHandler(): void {
       audio: getSystemAudioBackend(
         platformName(),
         capture.sourceType,
-        capture.includeSystemAudio
+        capture.includeSystemAudio,
+        supportsSelectedApplicationAudio(platformName(), release())
       ) === 'electron-loopback'
         ? 'loopback'
         : undefined
@@ -392,6 +394,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
-  void nativeSystemAudio.stop()
+app.on('before-quit', (event) => {
+  if (nativeAudioShutdownStarted) return
+  event.preventDefault()
+  nativeAudioShutdownStarted = true
+  void nativeSystemAudio.stop().finally(() => app.quit())
 })

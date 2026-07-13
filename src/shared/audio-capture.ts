@@ -41,9 +41,11 @@ export function getAudioCaptureMode(
 export function getSystemAudioBackend(
   platform: 'darwin' | 'win32' | 'other',
   sourceType: CaptureSource['type'],
-  enabled: boolean
+  enabled: boolean,
+  selectedApplicationAudioSupported = true
 ): SystemAudioBackend {
   if (!enabled) return 'none'
+  if (sourceType === 'window' && !selectedApplicationAudioSupported) return 'none'
   if (platform === 'darwin') return 'native-content'
   if (platform === 'win32') {
     return sourceType === 'window' ? 'native-content' : 'electron-loopback'

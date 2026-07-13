@@ -47,6 +47,11 @@ describe('system audio backend', () => {
     expect(getSystemAudioBackend('win32', 'window', true)).toBe('native-content')
   })
 
+  it('never starts native selected-window capture when the OS cannot isolate app audio', () => {
+    expect(getSystemAudioBackend('darwin', 'window', true, false)).toBe('none')
+    expect(getSystemAudioBackend('win32', 'window', true, false)).toBe('none')
+  })
+
   it('does not start a system backend when app/system sound is disabled', () => {
     expect(getSystemAudioBackend('darwin', 'window', false)).toBe('none')
     expect(getSystemAudioBackend('win32', 'screen', false)).toBe('none')

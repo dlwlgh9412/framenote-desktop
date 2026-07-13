@@ -113,15 +113,17 @@ export class NativeSystemAudioManager {
     if (!child || child.killed) return
     await new Promise<void>((resolve) => {
       let finished = false
+      let forceTimeout: NodeJS.Timeout | undefined
       const finish = (): void => {
         if (finished) return
         finished = true
         clearTimeout(timeout)
+        if (forceTimeout) clearTimeout(forceTimeout)
         resolve()
       }
       const timeout = setTimeout(() => {
         child.kill('SIGKILL')
-        finish()
+        forceTimeout = setTimeout(finish, 500)
       }, 1_500)
       child.once('exit', () => {
         finish()

@@ -119,10 +119,14 @@ export class RecordingController {
     const platform = window.recordingApi.platform === 'darwin' || window.recordingApi.platform === 'win32'
       ? window.recordingApi.platform
       : 'other'
+    const selectedApplicationAudioSupported = source.type === 'window' && preferences.includeSystemAudio
+      ? (await window.recordingApi.getPermissions()).selectedApplicationAudioSupported
+      : true
     const systemAudioBackend = getSystemAudioBackend(
       platform,
       source.type,
-      preferences.includeSystemAudio
+      preferences.includeSystemAudio,
+      selectedApplicationAudioSupported
     )
     const nativeSystemAudioRequest: NativeSystemAudioRequest = {
       sourceId: source.id,
@@ -325,6 +329,13 @@ export class RecordingController {
       const gain = this.audioContext.createGain()
       gain.gain.value = microphoneStream ? 0.82 : 1
       this.nativeAudioNode.connect(gain).connect(compressor)
+      this.nativeAudioNode.port.onmessage = ({ data }) => {
+        if (data && typeof data === 'object' && 'type' in data && data.type === 'overflow') {
+          this.callbacks.onSystemAudioError(
+            new Error('시스템 오디오 처리 속도가 캡처 속도를 따라가지 못했습니다.')
+          )
+        }
+      }
       this.removeNativeAudioDataListener = window.recordingApi.onNativeSystemAudioData((samples) => {
         const copy = new Float32Array(samples)
         this.nativeAudioNode?.port.postMessage(copy, [copy.buffer])

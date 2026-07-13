@@ -56,6 +56,7 @@ private final class FramedPCMOutput {
     private let stateLock = NSLock()
     private let maxPendingBytes = 16 * 1024 * 1024
     private var pendingBytes = 0
+    private var overflowReported = false
 
     func write(_ samples: [Float]) {
         guard !samples.isEmpty else { return }
@@ -66,7 +67,13 @@ private final class FramedPCMOutput {
 
         stateLock.lock()
         guard pendingBytes + packetBytes <= maxPendingBytes else {
+            let shouldReport = !overflowReported
+            overflowReported = true
             stateLock.unlock()
+            if shouldReport {
+                writeStatus("ERROR:Native audio output could not keep up with capture.")
+                Darwin.exit(3)
+            }
             return
         }
         pendingBytes += packetBytes

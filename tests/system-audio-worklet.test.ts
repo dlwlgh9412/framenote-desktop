@@ -1,13 +1,16 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { runInNewContext } from 'node:vm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 interface TestProcessor {
   chunks: Float32Array[]
   offset: number
   queuedSamples: number
-  port: { onmessage?: (event: { data: Float32Array }) => void }
+  port: {
+    onmessage?: (event: { data: Float32Array }) => void
+    postMessage: ReturnType<typeof vi.fn>
+  }
   process: (inputs: unknown[], outputs: Float32Array[][]) => boolean
 }
 
@@ -18,7 +21,10 @@ async function loadProcessor(): Promise<new () => TestProcessor> {
   )
   let processor: (new () => TestProcessor) | undefined
   class MockAudioWorkletProcessor {
-    port: { onmessage?: (event: { data: Float32Array }) => void } = {}
+    port = {
+      onmessage: undefined as ((event: { data: Float32Array }) => void) | undefined,
+      postMessage: vi.fn()
+    }
   }
   runInNewContext(source, {
     AudioWorkletProcessor: MockAudioWorkletProcessor,
@@ -45,5 +51,6 @@ describe('native system audio worklet queue', () => {
     expect(processor.offset).toBe(0)
     expect(processor.chunks).toHaveLength(1)
     expect(processor.queuedSamples).toBe(replacement.length)
+    expect(processor.port.postMessage).toHaveBeenCalledWith({ type: 'overflow' })
   })
 })

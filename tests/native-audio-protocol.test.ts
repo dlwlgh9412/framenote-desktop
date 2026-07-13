@@ -62,6 +62,13 @@ describe('native audio helper lifecycle', () => {
     expect(describeNativeAudioExit(0, null)).toContain('code 0')
     expect(describeNativeAudioExit(null, 'SIGKILL')).toContain('SIGKILL')
   })
+
+  it('delays app shutdown until the native helper has stopped', async () => {
+    const source = await readFile(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(source).toContain('event.preventDefault()')
+    expect(source).toContain('nativeSystemAudio.stop().finally(() => app.quit())')
+  })
 })
 
 describe('macOS ScreenCaptureKit helper bootstrap', () => {
@@ -83,6 +90,7 @@ describe('macOS ScreenCaptureKit helper bootstrap', () => {
     expect(source).toContain('outputSampleRate: 48_000')
     expect(source).toContain('maxPendingBytes')
     expect(source).toContain('queue.async')
+    expect(source).toContain('Native audio output could not keep up with capture.')
     expect(source).not.toContain('desktopIndependentWindow')
     expect(source).not.toContain('including: [application]')
   })

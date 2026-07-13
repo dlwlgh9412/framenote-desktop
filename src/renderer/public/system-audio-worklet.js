@@ -5,15 +5,22 @@ class MinuteFrameSystemAudioProcessor extends AudioWorkletProcessor {
     this.offset = 0
     this.queuedSamples = 0
     this.maxQueuedSamples = sampleRate * 2 * 2
+    this.overflowReported = false
     this.port.onmessage = ({ data }) => {
       const samples = data instanceof Float32Array ? data : new Float32Array(data)
       if (samples.length === 0 || samples.length % 2 !== 0) return
       this.chunks.push(samples)
       this.queuedSamples += samples.length
+      let overflowed = false
       while (this.queuedSamples > this.maxQueuedSamples && this.chunks.length > 1) {
         const removed = this.chunks.shift()
         this.queuedSamples -= removed.length - this.offset
         this.offset = 0
+        overflowed = true
+      }
+      if ((overflowed || this.queuedSamples > this.maxQueuedSamples) && !this.overflowReported) {
+        this.overflowReported = true
+        this.port.postMessage({ type: 'overflow' })
       }
     }
   }

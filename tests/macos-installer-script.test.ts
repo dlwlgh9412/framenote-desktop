@@ -10,6 +10,7 @@ describe('macOS installer image', () => {
       join(process.cwd(), 'scripts/package-macos-release.sh'),
       'utf8'
     )
+    const workflow = await readFile(join(process.cwd(), '.github/workflows/build.yml'), 'utf8')
 
     expect(script).toContain('productbuild')
     expect(script).toContain('.pkg')
@@ -24,5 +25,9 @@ describe('macOS installer image', () => {
     expect(releaseScript).toContain('notarytool submit')
     expect(releaseScript).toContain('stapler staple')
     expect(releaseScript).not.toContain('identity=null')
+    expect(workflow).toContain('MAC_INSTALLER_CSC_LINK')
+    expect(workflow).toContain('MAC_INSTALLER_CSC_KEY_PASSWORD')
+    expect(workflow).toContain('security import')
+    expect(workflow).toContain('Developer ID Installer:')
   })
 })
