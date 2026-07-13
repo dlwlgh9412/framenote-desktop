@@ -111,10 +111,14 @@ export default function App(): React.JSX.Element {
   const permissionsRef = useRef<PermissionSnapshot | null>(null)
   const sourceTabRef = useRef<CaptureSource['type']>('screen')
   const automaticSourceRefreshCountRef = useRef(0)
+  const awaitingSourcePreviewRef = useRef(false)
+  const livePreviewFailedRef = useRef(false)
+  const recorderStatusRef = useRef(recorderState.status)
   const nativeStateLoadedRef = useRef(false)
   const sourceRefreshGateRef = useRef(new SingleFlight())
   const focusRefreshGateRef = useRef(new SingleFlight())
   const startRecordingGateRef = useRef(new SingleFlight())
+  recorderStatusRef.current = recorderState.status
   const livePreviewControllerRef = useRef<LivePreviewController | null>(null)
 
   if (!livePreviewControllerRef.current) {
@@ -151,6 +155,14 @@ export default function App(): React.JSX.Element {
     try {
       const nextSources = await window.recordingApi.listSources({ includeVisuals })
       setSources((current) => mergeCaptureSourceVisuals(current, nextSources, includeVisuals))
+      if (
+        awaitingSourcePreviewRef.current &&
+        nextSources.some(({ type }) => type === sourceTabRef.current) &&
+        recorderStatusRef.current !== 'completed'
+      ) {
+        awaitingSourcePreviewRef.current = false
+        setLivePreviewRequested(true)
+      }
       setSelectedSourceId((current) => selectSourceIdForTab(
         nextSources,
         sourceTabRef.current,
@@ -236,7 +248,7 @@ export default function App(): React.JSX.Element {
       const includeVisuals = automaticSourceRefreshCountRef.current % 5 === 0
       void refreshSources(false, includeVisuals)
         .then(() => {
-          if (livePreviewError && livePreviewRequested) {
+          if (livePreviewFailedRef.current && livePreviewRequested) {
             setLivePreviewRetry((value) => value + 1)
           }
         })
@@ -247,7 +259,6 @@ export default function App(): React.JSX.Element {
     return () => window.clearInterval(timer)
   }, [
     isActive,
-    livePreviewError,
     livePreviewRequested,
     nativeStateLoaded,
     needsScreenPermission,
@@ -274,8 +285,10 @@ export default function App(): React.JSX.Element {
       return
     }
 
+    livePreviewFailedRef.current = false
     setLivePreviewError('')
     void livePreview.show(selectedSource).catch((error: unknown) => {
+      livePreviewFailedRef.current = true
       setLivePreviewError(normalizeError(error).message)
     })
     return () => {
@@ -350,6 +363,7 @@ export default function App(): React.JSX.Element {
     if (recorderState.status === 'completed' || recorderState.status === 'error') {
       dispatch({ type: 'reset' })
     }
+    awaitingSourcePreviewRef.current = false
     setSelectedSourceId(source.id)
     setLivePreviewRequested(true)
     setRecordingPreviewHidden(false)
@@ -370,6 +384,7 @@ export default function App(): React.JSX.Element {
     const nextSource = sources.find(({ id }) => id === nextId)
     if (nextSource) selectSource(nextSource)
     else {
+      awaitingSourcePreviewRef.current = true
       setSelectedSourceId('')
       setLivePreviewRequested(false)
     }

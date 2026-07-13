@@ -6,7 +6,7 @@ import {
 
 describe('macOS window cursor policy', () => {
   it('loads the development native module only on macOS', () => {
-    const loader = vi.fn()
+    const loader = vi.fn(() => ({ installed: true }))
     const path = resolveMacosCursorPolicyPath(false, '/app', '/resources')
 
     expect(loadMacosCursorPolicy('darwin', path, loader)).toBe(true)
@@ -20,5 +20,11 @@ describe('macOS window cursor policy', () => {
     expect(path).toBe('/resources/bin/minuteframe-cursor-policy.node')
     expect(loadMacosCursorPolicy('win32', path, loader)).toBe(false)
     expect(loader).not.toHaveBeenCalled()
+  })
+
+  it('rejects a native module that did not install the ScreenCaptureKit hook', () => {
+    expect(() => loadMacosCursorPolicy('darwin', '/policy.node', () => ({}))).toThrow(
+      'window cursor policy hook was not installed'
+    )
   })
 })

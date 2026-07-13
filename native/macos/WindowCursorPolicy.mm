@@ -46,13 +46,16 @@ static id initializeStreamWithoutWindowCursor(
     return originalStreamInitializer(receiver, selector, filter, configuration, delegate);
 }
 
-static void installWindowCursorPolicy() {
+static bool installWindowCursorPolicy() {
+    static bool installed = false;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         Class filterClass = NSClassFromString(@"SCContentFilter");
         SEL filterSelector = @selector(initWithDesktopIndependentWindow:);
         Method filterInitializer = class_getInstanceMethod(filterClass, filterSelector);
-        if (filterInitializer != nullptr) {
+        if (filterInitializer != nullptr &&
+            method_getNumberOfArguments(filterInitializer) == 3 &&
+            method_getTypeEncoding(filterInitializer) != nullptr) {
             originalWindowFilterInitializer = reinterpret_cast<WindowFilterInitializer>(
                 method_getImplementation(filterInitializer));
             method_setImplementation(
@@ -63,19 +66,45 @@ static void installWindowCursorPolicy() {
         Class streamClass = NSClassFromString(@"SCStream");
         SEL selector = @selector(initWithFilter:configuration:delegate:);
         Method initializer = class_getInstanceMethod(streamClass, selector);
-        if (initializer == nullptr) return;
+        if (initializer == nullptr ||
+            method_getNumberOfArguments(initializer) != 5 ||
+            method_getTypeEncoding(initializer) == nullptr) return;
+        if (@available(macOS 14.0, *)) {
+            // SCContentFilter.style identifies window filters directly.
+        } else if (originalWindowFilterInitializer == nullptr) {
+            return;
+        }
 
         originalStreamInitializer = reinterpret_cast<StreamInitializer>(
             method_getImplementation(initializer));
         method_setImplementation(
             initializer,
             reinterpret_cast<IMP>(initializeStreamWithoutWindowCursor));
+        installed = true;
     });
+    return installed;
 }
 
-extern "C" __attribute__((visibility("default"))) void *napi_register_module_v1(
-    void *,
-    void *exports) {
-    installWindowCursorPolicy();
+using NapiEnvironment = void *;
+using NapiValue = void *;
+using NapiStatus = int;
+
+extern "C" NapiStatus napi_get_boolean(NapiEnvironment, bool, NapiValue *);
+extern "C" NapiStatus napi_set_named_property(
+    NapiEnvironment,
+    NapiValue,
+    const char *,
+    NapiValue);
+
+extern "C" __attribute__((visibility("default"))) NapiValue napi_register_module_v1(
+    NapiEnvironment environment,
+    NapiValue exports) {
+    NapiValue installedValue = nullptr;
+    if (napi_get_boolean(environment, installWindowCursorPolicy(), &installedValue) != 0) {
+        return nullptr;
+    }
+    if (napi_set_named_property(environment, exports, "installed", installedValue) != 0) {
+        return nullptr;
+    }
     return exports;
 }

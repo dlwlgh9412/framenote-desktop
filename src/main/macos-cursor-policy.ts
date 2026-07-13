@@ -18,6 +18,14 @@ export function loadMacosCursorPolicy(
   loader: (path: string) => unknown
 ): boolean {
   if (platform !== 'darwin') return false
-  loader(path)
+  const loaded = loader(path)
+  if (
+    typeof loaded !== 'object' ||
+    loaded === null ||
+    !('installed' in loaded) ||
+    loaded.installed !== true
+  ) {
+    throw new Error('The native macOS window cursor policy hook was not installed.')
+  }
   return true
 }
