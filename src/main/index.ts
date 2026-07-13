@@ -1,0 +1,241 @@
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  dialog,
+  ipcMain,
+  session,
+  shell,
+  systemPreferences
+} from 'electron'
+import { join } from 'node:path'
+import { mkdir } from 'node:fs/promises'
+import { release } from 'node:os'
+import type {
+  AppPreferences,
+  CreateRecordingRequest,
+  PermissionSnapshot,
+  PrepareCaptureRequest
+} from '../shared/contracts'
+import { PreferenceStore } from './preference-store'
+import { RecordingFileSink } from './recording-file-sink'
+
+let mainWindow: BrowserWindow | null = null
+let pendingCapture: PrepareCaptureRequest | null = null
+let allowWindowClose = false
+const preferenceStore = new PreferenceStore()
+const fileSink = new RecordingFileSink()
+
+function createWindow(): void {
+  mainWindow = new BrowserWindow({
+    width: 1240,
+    height: 820,
+    minWidth: 1000,
+    minHeight: 700,
+    show: false,
+    backgroundColor: '#f4f6f8',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+
+  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  mainWindow.webContents.on('will-navigate', (event) => event.preventDefault())
+  mainWindow.on('close', async (event) => {
+    if (allowWindowClose || !fileSink.hasActiveRecordings) return
+    event.preventDefault()
+    const result = await dialog.showMessageBox(mainWindow!, {
+      type: 'warning',
+      title: '녹화를 종료할까요?',
+      message: '현재 녹화가 진행 중입니다.',
+      detail: '앱을 닫으면 현재 파일이 정상적으로 마무리되지 않을 수 있습니다.',
+      buttons: ['계속 녹화', '종료'],
+      cancelId: 0,
+      defaultId: 0
+    })
+    if (result.response === 1) {
+      allowWindowClose = true
+      await fileSink.abortAll()
+      mainWindow?.close()
+    }
+  })
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+function registerCaptureHandler(): void {
+  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    const capture = pendingCapture
+    pendingCapture = null
+    if (!capture) {
+      callback({})
+      return
+    }
+
+    const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] })
+    const source = sources.find(({ id }) => id === capture.sourceId)
+    if (!source) {
+      callback({})
+      return
+    }
+
+    callback({
+      video: source,
+      audio: capture.includeSystemAudio ? 'loopback' : undefined
+    })
+  })
+}
+
+function registerPermissionHandlers(): void {
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+    return permission === 'media' && webContents?.id === mainWindow?.webContents.id
+  })
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(permission === 'media' && webContents.id === mainWindow?.webContents.id)
+  })
+}
+
+function platformName(): PermissionSnapshot['platform'] {
+  if (process.platform === 'darwin' || process.platform === 'win32') return process.platform
+  return 'other'
+}
+
+function permissionStatus(kind: 'screen' | 'microphone'): PermissionSnapshot['screen'] {
+  if (process.platform !== 'darwin') return 'granted'
+  return systemPreferences.getMediaAccessStatus(kind)
+}
+
+function supportsSystemAudio(): boolean {
+  if (process.platform === 'win32') return true
+  if (process.platform !== 'darwin') return false
+  return Number(release().split('.')[0]) >= 22
+}
+
+function sanitizePreferencePatch(patch: Partial<AppPreferences>): Partial<AppPreferences> {
+  const safe: Partial<AppPreferences> = {}
+  if (['auto', 'h264', 'vp9', 'vp8'].includes(patch.codecPreference ?? '')) {
+    safe.codecPreference = patch.codecPreference
+  }
+  if (['efficient', 'balanced', 'detailed', 'smooth'].includes(patch.qualityPreset ?? '')) {
+    safe.qualityPreset = patch.qualityPreset
+  }
+  if (patch.captureMode === 'meeting' || patch.captureMode === 'screen') {
+    safe.captureMode = patch.captureMode
+  }
+  if (typeof patch.includeSystemAudio === 'boolean') safe.includeSystemAudio = patch.includeSystemAudio
+  if (typeof patch.includeMicrophone === 'boolean') safe.includeMicrophone = patch.includeMicrophone
+  if (typeof patch.microphoneDeviceId === 'string' && patch.microphoneDeviceId.length <= 512) {
+    safe.microphoneDeviceId = patch.microphoneDeviceId
+  }
+  return safe
+}
+
+function registerIpc(): void {
+  ipcMain.handle('sources:list', async () => {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 384, height: 216 },
+      fetchWindowIcons: true
+    })
+    return sources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      type: source.id.startsWith('screen:') ? 'screen' : 'window',
+      thumbnailDataUrl: source.thumbnail.toDataURL(),
+      appIconDataUrl: source.appIcon?.isEmpty() ? undefined : source.appIcon?.toDataURL(),
+      displayId: source.display_id
+    }))
+  })
+
+  ipcMain.handle('permissions:get', (): PermissionSnapshot => ({
+    screen: permissionStatus('screen'),
+    microphone: permissionStatus('microphone'),
+    systemAudioSupported: supportsSystemAudio(),
+    platform: platformName()
+  }))
+
+  ipcMain.handle('permissions:request-microphone', async () => {
+    if (process.platform !== 'darwin') return true
+    return systemPreferences.askForMediaAccess('microphone')
+  })
+
+  ipcMain.handle('permissions:open-settings', async (_event, kind: 'screen' | 'microphone') => {
+    if (process.platform !== 'darwin') return
+    const pane = kind === 'screen' ? 'Privacy_ScreenCapture' : 'Privacy_Microphone'
+    await shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${pane}`)
+  })
+
+  ipcMain.handle('preferences:get', () => preferenceStore.get())
+  ipcMain.handle('preferences:update', (_event, patch: Partial<AppPreferences>) =>
+    preferenceStore.update(sanitizePreferencePatch(patch))
+  )
+  ipcMain.handle('preferences:choose-directory', async () => {
+    const current = await preferenceStore.get()
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: '녹화 저장 폴더 선택',
+      defaultPath: current.outputDirectory,
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || !result.filePaths[0]) return current
+    return preferenceStore.update({ outputDirectory: result.filePaths[0] })
+  })
+  ipcMain.handle('preferences:open-directory', async () => {
+    const { outputDirectory } = await preferenceStore.get()
+    await mkdir(outputDirectory, { recursive: true })
+    const error = await shell.openPath(outputDirectory)
+    if (error) throw new Error(error)
+  })
+
+  ipcMain.handle('capture:prepare', (_event, request: PrepareCaptureRequest) => {
+    pendingCapture = request
+  })
+
+  ipcMain.handle('recording:create', async (_event, request: CreateRecordingRequest) => {
+    if (!['mp4', 'webm'].includes(request.extension)) throw new Error('Unsupported file extension.')
+    if (!['meeting', 'screen'].includes(request.mode)) throw new Error('Unsupported capture mode.')
+    const preferences = await preferenceStore.get()
+    return fileSink.create(preferences.outputDirectory, request.extension, request.mode)
+  })
+  ipcMain.handle('recording:write', (_event, sessionId: string, chunk: Uint8Array) =>
+    chunk instanceof Uint8Array && chunk.byteLength <= 64 * 1024 * 1024
+      ? fileSink.write(sessionId, chunk)
+      : Promise.reject(new Error('Invalid recording chunk.'))
+  )
+  ipcMain.handle('recording:finish', (_event, sessionId: string) => fileSink.finish(sessionId))
+  ipcMain.handle('recording:abort', (_event, sessionId: string) => fileSink.abort(sessionId))
+  ipcMain.handle('recording:reveal', (_event, filePath: string) => shell.showItemInFolder(filePath))
+}
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) app.quit()
+
+app.whenReady().then(() => {
+  app.setAppUserModelId('com.meetingcapture.app')
+  registerCaptureHandler()
+  registerPermissionHandlers()
+  registerIpc()
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.focus()
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
