@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SingleFlight } from '../src/renderer/src/lib/single-flight'
-import { shouldRefreshSourcesForPermissionChange } from '../src/renderer/src/lib/permission-refresh'
+import {
+  shouldClearSourcesForPermissionChange,
+  shouldRefreshSourcesForPermissionChange
+} from '../src/renderer/src/lib/permission-refresh'
 
 describe('SingleFlight', () => {
   it('coalesces concurrent refreshes and allows a later refresh after completion', async () => {
@@ -41,5 +44,13 @@ describe('shouldRefreshSourcesForPermissionChange', () => {
     expect(shouldRefreshSourcesForPermissionChange('granted', 'granted')).toBe(false)
     expect(shouldRefreshSourcesForPermissionChange('granted', 'denied')).toBe(false)
     expect(shouldRefreshSourcesForPermissionChange(undefined, 'granted')).toBe(false)
+  })
+
+  it('clears stale sources when a previously granted permission is revoked', () => {
+    expect(shouldClearSourcesForPermissionChange('granted', 'denied')).toBe(true)
+    expect(shouldClearSourcesForPermissionChange('granted', 'restricted')).toBe(true)
+    expect(shouldClearSourcesForPermissionChange('granted', 'not-determined')).toBe(true)
+    expect(shouldClearSourcesForPermissionChange('denied', 'denied')).toBe(false)
+    expect(shouldClearSourcesForPermissionChange(undefined, 'denied')).toBe(false)
   })
 })

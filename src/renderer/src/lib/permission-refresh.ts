@@ -8,3 +8,10 @@ export function shouldRefreshSourcesForPermissionChange(
 ): boolean {
   return previous !== undefined && previous !== 'granted' && next === 'granted'
 }
+
+export function shouldClearSourcesForPermissionChange(
+  previous: ScreenPermission | undefined,
+  next: ScreenPermission
+): boolean {
+  return previous === 'granted' && next !== 'granted'
+}

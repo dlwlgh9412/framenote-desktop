@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -65,5 +65,20 @@ describe('RecordingFileSink', () => {
     expect(await exists(`${session.filePath}.partial`)).toBe(false)
     expect(sink.hasActiveRecordings).toBe(false)
     expect(blocker.started.size).toBe(0)
+  })
+
+  it('preserves the synchronized partial file if publishing the final name fails', async () => {
+    const sink = new RecordingFileSink()
+    const session = await sink.create(outputDirectory, 'mp4', 'meeting')
+    await sink.write(session.id, new Uint8Array([5, 4, 3, 2, 1]))
+    await mkdir(session.filePath)
+
+    await expect(sink.finish(session.id)).rejects.toThrow('.partial')
+    expect(await readFile(`${session.filePath}.partial`)).toEqual(Buffer.from([5, 4, 3, 2, 1]))
+    expect(sink.hasActiveRecordings).toBe(false)
+    expect(blocker.started.size).toBe(0)
+
+    await sink.abort(session.id)
+    expect(await exists(`${session.filePath}.partial`)).toBe(true)
   })
 })

@@ -204,11 +204,10 @@ export class RecordingController {
         ? await window.recordingApi.finishRecording(this.session.id)
         : ''
     } catch (error) {
-      if (this.session) await window.recordingApi.abortRecording(this.session.id)
+      await this.abortSession()
       throw error
     } finally {
-      this.stopTracks()
-      await this.audioContext?.close().catch(() => undefined)
+      await this.releaseMediaResources()
     }
   }
 
@@ -216,10 +215,9 @@ export class RecordingController {
     try {
       await this.stopMediaRecorder().catch(() => undefined)
       await this.writer?.flush().catch(() => undefined)
-      if (this.session) await window.recordingApi.abortRecording(this.session.id)
+      await this.abortSession()
     } finally {
-      this.stopTracks()
-      await this.audioContext?.close().catch(() => undefined)
+      await this.releaseMediaResources()
     }
   }
 
@@ -282,9 +280,20 @@ export class RecordingController {
   }
 
   private async cleanupAfterFailure(): Promise<void> {
+    try {
+      await this.abortSession()
+    } finally {
+      await this.releaseMediaResources()
+    }
+  }
+
+  private async abortSession(): Promise<void> {
+    if (this.session) await window.recordingApi.abortRecording(this.session.id)
+  }
+
+  private async releaseMediaResources(): Promise<void> {
     this.stopTracks()
     await this.audioContext?.close().catch(() => undefined)
-    if (this.session) await window.recordingApi.abortRecording(this.session.id)
   }
 
   private stopTracks(): void {

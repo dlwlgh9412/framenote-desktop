@@ -48,7 +48,10 @@ import {
 import { Toggle } from './components/Toggle'
 import { SettingsModal } from './components/SettingsModal'
 import { formatEstimatedSize } from './lib/formatting'
-import { shouldRefreshSourcesForPermissionChange } from './lib/permission-refresh'
+import {
+  shouldClearSourcesForPermissionChange,
+  shouldRefreshSourcesForPermissionChange
+} from './lib/permission-refresh'
 import { normalizeError, RecordingController } from './lib/recording-controller'
 import { startRecordingWithPreview } from './lib/recording-start'
 import { SingleFlight } from './lib/single-flight'
@@ -157,7 +160,13 @@ export default function App(): React.JSX.Element {
         const previous = permissionsRef.current
         const next = await window.recordingApi.getPermissions()
         updatePermissionSnapshot(next)
-        if (!isActive && shouldRefreshSourcesForPermissionChange(previous?.screen, next.screen)) {
+        if (!isActive && shouldClearSourcesForPermissionChange(previous?.screen, next.screen)) {
+          setSources([])
+          setSelectedSourceId('')
+        } else if (
+          !isActive &&
+          shouldRefreshSourcesForPermissionChange(previous?.screen, next.screen)
+        ) {
           await refreshSources()
         }
         if (previous && previous.microphone !== next.microphone && next.microphone === 'granted') {
@@ -546,7 +555,7 @@ export default function App(): React.JSX.Element {
                 className="record-button"
                 type="button"
                 onClick={() => void startRecordingGateRef.current.run(startRecording)}
-                disabled={!selectedSourceId || controlsLocked}
+                disabled={!selectedSourceId || controlsLocked || needsScreenPermission}
               >
                 <span className="record-button__dot" />
                 <span>{recorderState.status === 'preparing' ? '준비 중…' : recorderState.status === 'finalizing' ? '저장 중…' : '녹화 시작'}</span>

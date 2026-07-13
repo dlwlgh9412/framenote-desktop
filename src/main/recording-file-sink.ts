@@ -46,9 +46,16 @@ export class RecordingFileSink {
     const recording = this.requireSession(sessionId)
     await recording.handle.sync()
     await recording.handle.close()
-    await rename(recording.partialPath, recording.filePath)
-    this.sessions.delete(sessionId)
-    this.stopPowerBlockerIfIdle()
+    try {
+      await rename(recording.partialPath, recording.filePath)
+    } catch (error) {
+      this.releaseSession(sessionId)
+      const detail = error instanceof Error ? ` ${error.message}` : ''
+      throw new Error(
+        `녹화 데이터는 보존했지만 최종 파일로 게시하지 못했습니다: ${recording.partialPath}.${detail}`
+      )
+    }
+    this.releaseSession(sessionId)
     return recording.filePath
   }
 
@@ -61,8 +68,7 @@ export class RecordingFileSink {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     } finally {
-      this.sessions.delete(sessionId)
-      this.stopPowerBlockerIfIdle()
+      this.releaseSession(sessionId)
     }
   }
 
@@ -113,6 +119,11 @@ export class RecordingFileSink {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
       throw error
     }
+  }
+
+  private releaseSession(sessionId: string): void {
+    this.sessions.delete(sessionId)
+    this.stopPowerBlockerIfIdle()
   }
 
   private startPowerBlocker(): void {
