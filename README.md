@@ -28,16 +28,74 @@
 - macOS 화면/마이크 권한 상태, 설정 바로가기, 오래된 화면 권한 연결 초기화
 - macOS Intel/Apple Silicon 및 Windows x64/ARM64 패키징
 
-## 빠른 시작
+## 소스 코드로 설치하기
 
-Node.js 24 이상을 권장합니다.
+FrameNote는 설치 파일을 별도로 배포하지 않습니다. 이 저장소의 소스를 내려받아 각 운영체제에서 직접 실행하거나 설치 파일을 만들 수 있습니다.
+
+### 공통 준비물
+
+- [Git](https://git-scm.com/downloads)
+- [Node.js](https://nodejs.org/) 24 이상
+
+터미널이나 PowerShell에서 저장소를 복제하고 의존성을 설치합니다.
 
 ```bash
-npm install
+git clone https://github.com/dlwlgh9412/framenote-desktop.git
+cd framenote-desktop
+npm ci
+```
+
+Git을 사용하지 않는다면 GitHub의 `Code → Download ZIP`으로 소스를 받은 뒤 압축을 풀고, 해당 폴더에서 `npm ci`를 실행해도 됩니다.
+
+설치 파일을 만들지 않고 개발 모드로 바로 실행하려면:
+
+```bash
 npm run dev
 ```
 
-프로덕션 코드와 테스트를 확인하려면:
+### macOS 설치
+
+macOS 13 이상과 Xcode Command Line Tools가 필요합니다. 도구가 없다면 먼저 설치합니다.
+
+```bash
+xcode-select --install
+```
+
+저장소 폴더에서 Intel과 Apple Silicon을 모두 지원하는 ad-hoc 서명 설치 이미지를 만듭니다.
+
+```bash
+npm run package:mac:adhoc
+```
+
+빌드가 끝나면 `release/FrameNote-0.3.0-mac-universal.dmg`가 생성됩니다.
+
+1. DMG를 열고 `FrameNote Installer.pkg`를 실행합니다.
+2. 설치 프로그램 안내에 따라 FrameNote를 응용 프로그램 폴더에 설치합니다.
+3. 응용 프로그램 폴더에서 FrameNote를 실행합니다.
+
+### Windows 설치
+
+Windows 10 이상과 다음 구성 요소가 필요합니다.
+
+- Visual Studio 2022 Build Tools
+- `C++를 사용한 데스크톱 개발` 워크로드
+- MSVC x64/x86 및 ARM64 빌드 도구
+- Windows 10 또는 11 SDK
+
+저장소 폴더의 PowerShell 또는 명령 프롬프트에서 설치 프로그램을 만듭니다.
+
+```powershell
+npm run package:win
+```
+
+빌드가 끝나면 `release/` 폴더에 다음 파일이 생성됩니다.
+
+- `FrameNote-0.3.0-win-x64.exe`: 일반적인 Intel/AMD 64비트 Windows
+- `FrameNote-0.3.0-win-arm64.exe`: ARM64 Windows
+
+직접 빌드한 Windows 설치 파일은 코드 서명 인증서가 없으므로 Microsoft Defender SmartScreen 경고가 표시될 수 있습니다. 이 저장소에서 직접 내려받아 빌드한 파일인지 확인한 뒤 실행하세요.
+
+전체 코드와 테스트를 확인하려면:
 
 ```bash
 npm run build
@@ -65,26 +123,6 @@ tests/          녹화·권한·설정·패키징 회귀 테스트
 docs/           제품 사양과 아키텍처 문서
 ```
 
-설치 파일은 각 운영체제에서 빌드하는 것이 가장 안정적입니다.
-
-```bash
-# macOS: 범용 DMG + ZIP (Intel + Apple Silicon)
-npm run package:mac
-
-# Developer ID가 없는 로컬 배포: 전체 ad-hoc 서명 범용 DMG
-npm run package:mac:adhoc
-
-# Windows: NSIS 설치 프로그램 (x64, ARM64)
-npm run package:win
-```
-
-태그를 푸시하거나 GitHub Actions의 `Build desktop installers` 워크플로를 수동 실행하면 macOS와 Windows 러너가 각각 설치 파일을 만듭니다. macOS 릴리스는 권한 신원을 버전 간 유지하기 위해 Developer ID 서명과 공증이 필수이며, 다음 GitHub Actions secret이 없으면 빌드를 의도적으로 중단합니다.
-
-- `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`: Developer ID Application 인증서와 암호
-- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`: Apple 공증 계정
-
-`package:mac:adhoc`은 인증서가 없는 로컬 테스트 전용입니다. Windows 공개 배포에는 별도의 코드 서명 인증서를 구성해야 합니다.
-
 ## 첫 실행 권한
 
 ### macOS
@@ -93,11 +131,11 @@ npm run package:win
 
 `package:mac:adhoc`으로 만든 macOS 설치 파일은 Apple Developer ID 인증서로 서명하거나 Apple 공증을 받은 공개 배포본이 아닙니다. 이 파일을 처음 실행하면 macOS에서 개발자를 확인할 수 없거나 Apple이 악성 소프트웨어 여부를 확인할 수 없다는 Gatekeeper 경고가 표시될 수 있습니다.
 
-이 유형의 경고는 FrameNote에서 악성코드가 검출됐다는 뜻이 아니라, Apple이 배포자의 Developer ID와 공증 티켓을 확인할 수 없다는 뜻입니다. 따라서 앱 기능상의 오류는 아니지만, 경고를 무시하는 행동 자체가 파일의 안전을 보장하지는 않습니다. 반드시 이 저장소의 공식 **GitHub Releases**에서 받은 FrameNote 설치 파일이고 다운로드 후 변경되지 않은 파일이라고 확신할 때만 실행하세요.
+이 유형의 경고는 FrameNote에서 악성코드가 검출됐다는 뜻이 아니라, Apple이 배포자의 Developer ID와 공증 티켓을 확인할 수 없다는 뜻입니다. 따라서 앱 기능상의 오류는 아니지만, 경고를 무시하는 행동 자체가 파일의 안전을 보장하지는 않습니다. 반드시 이 저장소에서 내려받은 소스로 직접 빌드했고 이후 변경되지 않은 파일이라고 확신할 때만 실행하세요.
 
 반대로 macOS가 앱이 **손상됨**, **컴퓨터를 손상시킴** 또는 **악성 소프트웨어가 감지됨**이라고 경고하면 아래 절차로 우회하지 마세요. 파일을 삭제하고 이 저장소에 문제를 신고해야 합니다. 이런 경고는 파일의 변조·손상, 악성 콘텐츠 감지 또는 인증 취소를 뜻할 수 있습니다.
 
-공식 Releases에서 받은 파일인데 실행이 차단됐다면:
+직접 빌드한 파일인데 실행이 차단됐다면:
 
 1. FrameNote 실행을 한 번 시도해 Gatekeeper 경고를 확인합니다.
 2. 시스템 설정 → 개인정보 보호 및 보안으로 이동합니다.
@@ -105,7 +143,7 @@ npm run package:win
 
 메뉴 이름과 절차는 macOS 버전에 따라 조금 다를 수 있습니다. 자세한 내용은 Apple의 [Mac에서 앱을 안전하게 열기](https://support.apple.com/ko-kr/102445) 안내를 참고하세요. Developer ID 서명과 Apple 공증을 적용한 정식 배포본에서는 Gatekeeper가 개발자 신원과 변조 여부를 확인할 수 있습니다.
 
-1. DMG에서 FrameNote를 실행하고 `응용 프로그램으로 이동`을 누릅니다. 앱이 설치된 위치에서 자동으로 다시 실행됩니다.
+1. 응용 프로그램 폴더에서 FrameNote를 실행합니다.
 2. 앱에서 `화면 접근 허용`을 누른 다음 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 기록에서 FrameNote를 허용합니다.
 3. 마이크 녹음을 사용한다면 마이크 권한도 허용합니다.
 4. 권한을 바꾼 후 앱을 완전히 종료하고 다시 실행합니다.
@@ -140,7 +178,7 @@ Windows 10 이상을 지원합니다. 시스템 오디오에는 Electron/Chromiu
 
 ## 개발 이력
 
-아래 내용은 저장소의 버전 변경 지점과 커밋 기록을 사용자 관점에서 정리한 것입니다. 아직 Git 태그 기반의 정식 릴리스 기록은 아닙니다.
+아래 내용은 저장소의 버전 변경 지점과 커밋 기록을 사용자 관점에서 정리한 것입니다.
 
 ### 0.3.0 — FrameNote 리브랜딩
 
@@ -167,7 +205,7 @@ Windows 10 이상을 지원합니다. 시스템 오디오에는 Electron/Chromiu
 - 선택한 화면이나 창에 맞춰 회의 오디오를 캡처하는 네이티브 경로를 추가했습니다.
 - macOS에는 화면용 ScreenCaptureKit과 창·앱용 Core Audio 프로세스 탭을 결합한 오디오 헬퍼를, Windows에는 WASAPI 기반 헬퍼를 도입했습니다.
 - 네이티브 오디오를 브라우저 녹화 스트림으로 전달하는 AudioWorklet 경로를 추가했습니다.
-- 헬퍼 프로세스 종료, 오류 전달, macOS 릴리스 패키징을 보강했습니다.
+- 헬퍼 프로세스 종료, 오류 전달, macOS 배포 패키징을 보강했습니다.
 
 ### 0.2.1 — 녹화 복구와 성능 안정화
 
