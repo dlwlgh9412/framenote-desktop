@@ -25,6 +25,35 @@ export type RecorderEvent =
 
 export const initialRecorderState: RecorderState = { status: 'idle' }
 
+const activeStatuses: ReadonlySet<RecorderStatus> = new Set([
+  'preparing',
+  'recording',
+  'paused',
+  'finalizing'
+])
+
+export const RECORDER_STATUS_LABELS: Record<RecorderStatus, string> = {
+  idle: '준비됨',
+  preparing: '준비 중',
+  recording: '녹화 중',
+  paused: '일시정지',
+  finalizing: '저장 중',
+  completed: '준비됨',
+  error: '준비됨'
+}
+
+export function isRecorderActive(state: RecorderState): boolean {
+  return activeStatuses.has(state.status)
+}
+
+export function canStopRecorder(state: RecorderState): boolean {
+  return state.status === 'recording' || state.status === 'paused'
+}
+
+export function controlsAreLocked(state: RecorderState): boolean {
+  return state.status === 'preparing' || state.status === 'finalizing'
+}
+
 export function transitionRecorder(state: RecorderState, event: RecorderEvent): RecorderState {
   if (event.type === 'failed') return { status: 'error', error: event.message }
   if (event.type === 'reset') return initialRecorderState
@@ -51,4 +80,3 @@ export function transitionRecorder(state: RecorderState, event: RecorderEvent): 
       return state
   }
 }
-

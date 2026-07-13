@@ -1,17 +1,10 @@
 import { app } from 'electron'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { AppPreferences } from '../shared/contracts'
+import { createDefaultPreferences, type AppPreferences } from '../shared/contracts'
 
-const defaultPreferences = (): AppPreferences => ({
-  outputDirectory: join(app.getPath('videos'), 'Meeting Capture'),
-  codecPreference: 'auto',
-  qualityPreset: 'balanced',
-  captureMode: 'meeting',
-  includeSystemAudio: true,
-  includeMicrophone: true,
-  microphoneDeviceId: ''
-})
+const defaultPreferences = (): AppPreferences =>
+  createDefaultPreferences(join(app.getPath('videos'), 'Meeting Capture'))
 
 export class PreferenceStore {
   private readonly filePath = join(app.getPath('userData'), 'preferences.json')
@@ -34,4 +27,3 @@ export class PreferenceStore {
     return next
   }
 }
-

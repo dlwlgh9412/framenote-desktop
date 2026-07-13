@@ -19,31 +19,31 @@ import {
   Square,
   Volume2
 } from 'lucide-react'
-import type {
-  AppPreferences,
-  CaptureMode,
-  CaptureSource,
-  PermissionSnapshot
+import {
+  createDefaultPreferences,
+  type AppPreferences,
+  type CaptureMode,
+  type CaptureSource,
+  type PermissionSnapshot
 } from '../../shared/contracts'
 import {
   QUALITY_PRESETS,
   type CodecPreference,
   type QualityPresetId
 } from '../../shared/recording-settings'
-import { initialRecorderState, transitionRecorder } from '../../shared/recorder-machine'
+import {
+  canStopRecorder,
+  controlsAreLocked,
+  initialRecorderState,
+  isRecorderActive,
+  RECORDER_STATUS_LABELS,
+  transitionRecorder
+} from '../../shared/recorder-machine'
 import { Toggle } from './components/Toggle'
 import { SettingsModal } from './components/SettingsModal'
 import { normalizeError, RecordingController } from './lib/recording-controller'
 
-const placeholderPreferences: AppPreferences = {
-  outputDirectory: '불러오는 중…',
-  codecPreference: 'auto',
-  qualityPreset: 'balanced',
-  captureMode: 'meeting',
-  includeSystemAudio: true,
-  includeMicrophone: true,
-  microphoneDeviceId: ''
-}
+const placeholderPreferences: AppPreferences = createDefaultPreferences('불러오는 중…')
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600)
@@ -78,8 +78,8 @@ export default function App(): React.JSX.Element {
     [sourceTab, sources]
   )
   const selectedSource = sources.find((source) => source.id === selectedSourceId)
-  const isActive = ['preparing', 'recording', 'paused', 'finalizing'].includes(recorderState.status)
-  const controlsLocked = recorderState.status === 'preparing' || recorderState.status === 'finalizing'
+  const isActive = isRecorderActive(recorderState)
+  const controlsLocked = controlsAreLocked(recorderState)
 
   const refreshSources = useCallback(async () => {
     if (isActive) return
@@ -131,7 +131,7 @@ export default function App(): React.JSX.Element {
 
   const stopRecording = useCallback(async () => {
     const controller = controllerRef.current
-    if (!controller || !['recording', 'paused'].includes(recorderState.status)) return
+    if (!controller || !canStopRecorder(recorderState)) return
     dispatch({ type: 'stop' })
     try {
       const filePath = await controller.stop()
@@ -157,6 +157,13 @@ export default function App(): React.JSX.Element {
     let controller: RecordingController
     controller = new RecordingController({
       onCaptureEnded: () => void stopRecordingRef.current(),
+      onStoragePressure: () => {
+        setAudioWarning('저장 장치의 응답이 느려 녹화를 종료하고 현재까지의 내용을 저장했습니다.')
+        void stopRecordingRef.current()
+      },
+      onSystemAudioMuted: () => {
+        setAudioWarning('시스템 오디오가 음소거되었습니다. macOS 오디오 캡처 권한을 확인해 주세요.')
+      },
       onWriteError: (error) => {
         dispatch({ type: 'failed', message: error.message })
         void controller.stop().catch(() => undefined)
@@ -212,13 +219,7 @@ export default function App(): React.JSX.Element {
   }
 
   const quality = QUALITY_PRESETS[preferences.qualityPreset]
-  const statusText = recorderState.status === 'recording'
-    ? '녹화 중'
-    : recorderState.status === 'paused'
-      ? '일시정지'
-      : recorderState.status === 'finalizing'
-        ? '저장 중'
-        : '준비됨'
+  const statusText = RECORDER_STATUS_LABELS[recorderState.status]
 
   return (
     <div className="app-shell">

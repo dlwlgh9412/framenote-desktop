@@ -13,5 +13,10 @@ describe('chooseCodec', () => {
       CODEC_PROFILES.h264
     )
   })
-})
 
+  it('does not silently replace a codec that the user selected explicitly', () => {
+    expect(() => chooseCodec('h264', () => false)).toThrow(
+      '선택한 MP4 · H.264/AAC 코덱을 현재 기기에서 사용할 수 없습니다.'
+    )
+  })
+})

@@ -235,6 +235,7 @@ button:focus-visible, select:focus-visible {
 .codec-list { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .codec-option { min-width: 0; display: grid; grid-template-columns: 20px 1fr; gap: 6px; padding: 10px; border: 1px solid #e2e6e9; border-radius: 9px; background: #fff; text-align: left; cursor: pointer; }
 .codec-option.selected { border-color: var(--teal); background: var(--teal-soft); }
+.codec-option:disabled { opacity: .48; cursor: not-allowed; }
 .codec-option__mark { width: 18px; height: 18px; color: var(--teal); }
 .codec-option > span:last-child { min-width: 0; display: flex; flex-direction: column; }
 .codec-option strong { font-size: 10px; }

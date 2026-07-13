@@ -6,9 +6,14 @@ import {
   KeyRound,
   Mic2,
   MonitorUp,
+  Volume2,
   X
 } from 'lucide-react'
-import type { AppPreferences, PermissionSnapshot } from '../../../shared/contracts'
+import type {
+  AppPreferences,
+  PermissionSettingsKind,
+  PermissionSnapshot
+} from '../../../shared/contracts'
 import { CODEC_PROFILES, type CodecPreference } from '../../../shared/recording-settings'
 
 interface SettingsModalProps {
@@ -18,7 +23,7 @@ interface SettingsModalProps {
   onChooseDirectory: () => void
   onOpenDirectory: () => void
   onChangeCodec: (codec: CodecPreference) => void
-  onOpenPermission: (kind: 'screen' | 'microphone') => void
+  onOpenPermission: (kind: PermissionSettingsKind) => void
 }
 
 function permissionLabel(status: PermissionSnapshot['screen'] | undefined): string {
@@ -93,19 +98,23 @@ export function SettingsModal({
               </span>
               <span><strong>자동 · 권장</strong><small>MP4 우선, 미지원 시 WebM 자동 전환</small></span>
             </button>
-            {Object.values(CODEC_PROFILES).map((codec) => (
-              <button
-                key={codec.id}
-                type="button"
-                className={`codec-option ${preferences.codecPreference === codec.id ? 'selected' : ''}`}
-                onClick={() => onChangeCodec(codec.id)}
-              >
-                <span className="codec-option__mark">
-                  {preferences.codecPreference === codec.id && <CheckCircle2 size={17} />}
-                </span>
-                <span><strong>{codec.label}</strong><small>{codec.detail}</small></span>
-              </button>
-            ))}
+            {Object.values(CODEC_PROFILES).map((codec) => {
+              const supported = MediaRecorder.isTypeSupported(codec.mimeType)
+              return (
+                <button
+                  key={codec.id}
+                  type="button"
+                  className={`codec-option ${preferences.codecPreference === codec.id ? 'selected' : ''}`}
+                  onClick={() => onChangeCodec(codec.id)}
+                  disabled={!supported}
+                >
+                  <span className="codec-option__mark">
+                    {preferences.codecPreference === codec.id && <CheckCircle2 size={17} />}
+                  </span>
+                  <span><strong>{codec.label}</strong><small>{supported ? codec.detail : '현재 기기에서 지원하지 않음'}</small></span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -134,10 +143,15 @@ export function SettingsModal({
               </em>
               <ChevronRight size={16} />
             </button>
+            <button className="permission-row" type="button" onClick={() => onOpenPermission('systemAudio')}>
+              <Volume2 size={17} />
+              <span>시스템 오디오</span>
+              <em>첫 녹화 시 요청</em>
+              <ChevronRight size={16} />
+            </button>
           </div>
         )}
       </section>
     </div>
   )
 }
-

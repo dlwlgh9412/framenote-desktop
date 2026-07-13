@@ -3,7 +3,7 @@ import { mkdir, open, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
-import type { CaptureMode, RecordingSession } from '../shared/contracts'
+import type { CaptureMode, RecordingExtension, RecordingSession } from '../shared/contracts'
 
 interface OpenRecording {
   handle: FileHandle
@@ -20,7 +20,7 @@ export class RecordingFileSink {
 
   async create(
     outputDirectory: string,
-    extension: 'mp4' | 'webm',
+    extension: RecordingExtension,
     mode: CaptureMode
   ): Promise<RecordingSession> {
     await mkdir(outputDirectory, { recursive: true })
@@ -71,7 +71,7 @@ export class RecordingFileSink {
 
   private async availableFilePath(
     outputDirectory: string,
-    extension: 'mp4' | 'webm',
+    extension: RecordingExtension,
     mode: CaptureMode
   ): Promise<string> {
     const now = new Date()

@@ -16,6 +16,8 @@ export interface RecordingStartResult {
 export interface RecordingControllerCallbacks {
   onCaptureEnded: () => void
   onWriteError: (error: Error) => void
+  onStoragePressure: () => void
+  onSystemAudioMuted: () => void
 }
 
 class ChunkWriter {
@@ -77,6 +79,7 @@ export class RecordingController {
   private writer?: ChunkWriter
   private userPaused = false
   private stopped = false
+  private storagePressureTriggered = false
   private stopPromise?: Promise<void>
 
   constructor(private readonly callbacks: RecordingControllerCallbacks) {}
@@ -137,11 +140,16 @@ export class RecordingController {
       })
       this.mediaRecorder.start(CHUNK_INTERVAL_MS)
 
+      const systemAudioTrack = this.screenStream.getAudioTracks()[0]
+      systemAudioTrack?.addEventListener('mute', this.callbacks.onSystemAudioMuted)
+
       return {
         previewStream: this.screenStream,
         filePath: this.session.filePath,
         codec,
-        hasSystemAudio: this.screenStream.getAudioTracks().length > 0,
+        hasSystemAudio: Boolean(
+          systemAudioTrack && systemAudioTrack.readyState === 'live' && !systemAudioTrack.muted
+        ),
         hasMicrophone: (this.microphoneStream?.getAudioTracks().length ?? 0) > 0
       }
     } catch (error) {
@@ -227,10 +235,10 @@ export class RecordingController {
 
   private handlePressure(active: boolean): void {
     if (!this.mediaRecorder) return
-    if (active && this.mediaRecorder.state === 'recording') {
-      this.mediaRecorder.pause()
-    } else if (!active && !this.userPaused && this.mediaRecorder.state === 'paused') {
-      this.mediaRecorder.resume()
+    if (active && !this.storagePressureTriggered) {
+      this.storagePressureTriggered = true
+      if (this.mediaRecorder.state === 'recording') this.mediaRecorder.pause()
+      this.callbacks.onStoragePressure()
     }
   }
 

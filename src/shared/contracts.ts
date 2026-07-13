@@ -1,6 +1,9 @@
 import type { CodecPreference, QualityPresetId } from './recording-settings'
 
-export type CaptureMode = 'meeting' | 'screen'
+export const CAPTURE_MODES = ['meeting', 'screen'] as const
+export type CaptureMode = (typeof CAPTURE_MODES)[number]
+export const RECORDING_EXTENSIONS = ['mp4', 'webm'] as const
+export type RecordingExtension = (typeof RECORDING_EXTENSIONS)[number]
 
 export interface CaptureSource {
   id: string
@@ -21,6 +24,26 @@ export interface AppPreferences {
   microphoneDeviceId: string
 }
 
+export function createDefaultPreferences(outputDirectory: string): AppPreferences {
+  return {
+    outputDirectory,
+    codecPreference: 'auto',
+    qualityPreset: 'balanced',
+    captureMode: 'meeting',
+    includeSystemAudio: true,
+    includeMicrophone: true,
+    microphoneDeviceId: ''
+  }
+}
+
+export function isCaptureMode(value: unknown): value is CaptureMode {
+  return typeof value === 'string' && CAPTURE_MODES.includes(value as CaptureMode)
+}
+
+export function isRecordingExtension(value: unknown): value is RecordingExtension {
+  return typeof value === 'string' && RECORDING_EXTENSIONS.includes(value as RecordingExtension)
+}
+
 export interface PermissionSnapshot {
   screen: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'
   microphone: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'
@@ -28,13 +51,15 @@ export interface PermissionSnapshot {
   platform: 'darwin' | 'win32' | 'other'
 }
 
+export type PermissionSettingsKind = 'screen' | 'microphone' | 'systemAudio'
+
 export interface PrepareCaptureRequest {
   sourceId: string
   includeSystemAudio: boolean
 }
 
 export interface CreateRecordingRequest {
-  extension: 'mp4' | 'webm'
+  extension: RecordingExtension
   mode: CaptureMode
 }
 
@@ -48,7 +73,7 @@ export interface RecordingApi {
   listSources: () => Promise<CaptureSource[]>
   getPermissions: () => Promise<PermissionSnapshot>
   requestMicrophonePermission: () => Promise<boolean>
-  openPermissionSettings: (kind: 'screen' | 'microphone') => Promise<void>
+  openPermissionSettings: (kind: PermissionSettingsKind) => Promise<void>
   getPreferences: () => Promise<AppPreferences>
   updatePreferences: (patch: Partial<AppPreferences>) => Promise<AppPreferences>
   chooseOutputDirectory: () => Promise<AppPreferences>
@@ -61,3 +86,19 @@ export interface RecordingApi {
   revealRecording: (filePath: string) => Promise<void>
 }
 
+export const IPC_CHANNELS = {
+  listSources: 'sources:list',
+  getPermissions: 'permissions:get',
+  requestMicrophonePermission: 'permissions:request-microphone',
+  openPermissionSettings: 'permissions:open-settings',
+  getPreferences: 'preferences:get',
+  updatePreferences: 'preferences:update',
+  chooseOutputDirectory: 'preferences:choose-directory',
+  openOutputDirectory: 'preferences:open-directory',
+  prepareCapture: 'capture:prepare',
+  createRecording: 'recording:create',
+  writeRecordingChunk: 'recording:write',
+  finishRecording: 'recording:finish',
+  abortRecording: 'recording:abort',
+  revealRecording: 'recording:reveal'
+} as const

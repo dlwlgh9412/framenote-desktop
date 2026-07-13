@@ -1,4 +1,5 @@
-export type CodecPreference = 'auto' | 'h264' | 'vp9' | 'vp8'
+export const CODEC_PREFERENCES = ['auto', 'h264', 'vp9', 'vp8'] as const
+export type CodecPreference = (typeof CODEC_PREFERENCES)[number]
 export type ConcreteCodec = Exclude<CodecPreference, 'auto'>
 
 export interface CodecProfile {
@@ -10,6 +11,7 @@ export interface CodecProfile {
 }
 
 export type QualityPresetId = 'efficient' | 'balanced' | 'detailed' | 'smooth'
+export const QUALITY_PRESET_IDS = ['efficient', 'balanced', 'detailed', 'smooth'] as const
 
 export interface QualityPreset {
   id: QualityPresetId
@@ -95,13 +97,27 @@ export function chooseCodec(
   preference: CodecPreference,
   isSupported: (mimeType: string) => boolean
 ): CodecProfile {
-  const order = preference === 'auto'
-    ? compatibilityOrder
-    : [preference, ...compatibilityOrder.filter((codec) => codec !== preference)]
+  if (preference !== 'auto') {
+    const selected = CODEC_PROFILES[preference]
+    if (!isSupported(selected.mimeType)) {
+      throw new Error(`선택한 ${selected.label} 코덱을 현재 기기에서 사용할 수 없습니다.`)
+    }
+    return selected
+  }
 
-  return CODEC_PROFILES[order.find((codec) => isSupported(CODEC_PROFILES[codec].mimeType)) ?? 'vp8']
+  const supported = compatibilityOrder.find((codec) => isSupported(CODEC_PROFILES[codec].mimeType))
+  if (!supported) throw new Error('현재 기기에서 지원되는 녹화 코덱을 찾을 수 없습니다.')
+  return CODEC_PROFILES[supported]
 }
 
 export function getQualityPreset(id: QualityPresetId): QualityPreset {
   return QUALITY_PRESETS[id]
+}
+
+export function isCodecPreference(value: unknown): value is CodecPreference {
+  return typeof value === 'string' && CODEC_PREFERENCES.includes(value as CodecPreference)
+}
+
+export function isQualityPresetId(value: unknown): value is QualityPresetId {
+  return typeof value === 'string' && QUALITY_PRESET_IDS.includes(value as QualityPresetId)
 }

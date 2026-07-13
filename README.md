@@ -48,6 +48,8 @@ npm run package:win
 2. 마이크 녹음을 사용한다면 마이크 권한도 허용합니다.
 3. 권한을 바꾼 후 앱을 완전히 종료하고 다시 실행합니다.
 
+macOS 14.2 이상에서는 첫 시스템 오디오 녹화 때 별도의 오디오 캡처 권한 창이 나타납니다. 앱 설정의 `macOS 권한 → 시스템 오디오`에서 해당 설정 화면을 다시 열 수 있습니다.
+
 macOS 13 이상을 주 지원합니다. 12.7.6 이하는 Apple API 제약 때문에 BlackHole 같은 가상 오디오 장치 없이 시스템 오디오를 가져올 수 없습니다. macOS 14.2 이상용 `NSAudioCaptureUsageDescription`도 패키지에 포함되어 있습니다.
 
 ### Windows
@@ -59,7 +61,7 @@ Windows 10 이상을 지원합니다. 시스템 오디오에는 Electron/Chromiu
 - 캡처와 MediaRecorder 인코딩은 Chromium의 미디어 스레드와 가능한 경우 하드웨어 가속을 사용합니다.
 - React UI와 비동기 파일 기록은 renderer/main 프로세스로 분리했습니다.
 - 녹화는 1초 청크로 기록하고 전체 파일 Blob을 메모리에 보관하지 않습니다.
-- 파일 기록 대기량이 32MB를 넘으면 인코더를 잠시 멈추고, 8MB 아래에서 자동 재개합니다.
+- 파일 기록 대기량이 32MB를 넘으면 내용을 조용히 누락하지 않도록 녹화를 종료하고 현재까지의 데이터를 안전하게 마무리한 뒤 사용자에게 알립니다.
 - 파일을 기록하는 동안 디스플레이 절전을 방지해 장시간 회의가 끊기지 않게 합니다.
 
 상세 구조는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 요구사항은 [docs/SPEC.md](docs/SPEC.md)를 참고하세요.
@@ -77,4 +79,3 @@ npm run typecheck
 npm test
 npm run build
 ```
-

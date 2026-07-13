@@ -11,12 +11,17 @@ import {
 import { join } from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { release } from 'node:os'
-import type {
-  AppPreferences,
-  CreateRecordingRequest,
-  PermissionSnapshot,
-  PrepareCaptureRequest
+import {
+  IPC_CHANNELS,
+  isCaptureMode,
+  isRecordingExtension,
+  type AppPreferences,
+  type CreateRecordingRequest,
+  type PermissionSettingsKind,
+  type PermissionSnapshot,
+  type PrepareCaptureRequest
 } from '../shared/contracts'
+import { isCodecPreference, isQualityPresetId } from '../shared/recording-settings'
 import { PreferenceStore } from './preference-store'
 import { RecordingFileSink } from './recording-file-sink'
 
@@ -122,13 +127,13 @@ function supportsSystemAudio(): boolean {
 
 function sanitizePreferencePatch(patch: Partial<AppPreferences>): Partial<AppPreferences> {
   const safe: Partial<AppPreferences> = {}
-  if (['auto', 'h264', 'vp9', 'vp8'].includes(patch.codecPreference ?? '')) {
+  if (isCodecPreference(patch.codecPreference)) {
     safe.codecPreference = patch.codecPreference
   }
-  if (['efficient', 'balanced', 'detailed', 'smooth'].includes(patch.qualityPreset ?? '')) {
+  if (isQualityPresetId(patch.qualityPreset)) {
     safe.qualityPreset = patch.qualityPreset
   }
-  if (patch.captureMode === 'meeting' || patch.captureMode === 'screen') {
+  if (isCaptureMode(patch.captureMode)) {
     safe.captureMode = patch.captureMode
   }
   if (typeof patch.includeSystemAudio === 'boolean') safe.includeSystemAudio = patch.includeSystemAudio
@@ -140,7 +145,7 @@ function sanitizePreferencePatch(patch: Partial<AppPreferences>): Partial<AppPre
 }
 
 function registerIpc(): void {
-  ipcMain.handle('sources:list', async () => {
+  ipcMain.handle(IPC_CHANNELS.listSources, async () => {
     const sources = await desktopCapturer.getSources({
       types: ['screen', 'window'],
       thumbnailSize: { width: 384, height: 216 },
@@ -156,29 +161,36 @@ function registerIpc(): void {
     }))
   })
 
-  ipcMain.handle('permissions:get', (): PermissionSnapshot => ({
+  ipcMain.handle(IPC_CHANNELS.getPermissions, (): PermissionSnapshot => ({
     screen: permissionStatus('screen'),
     microphone: permissionStatus('microphone'),
     systemAudioSupported: supportsSystemAudio(),
     platform: platformName()
   }))
 
-  ipcMain.handle('permissions:request-microphone', async () => {
+  ipcMain.handle(IPC_CHANNELS.requestMicrophonePermission, async () => {
     if (process.platform !== 'darwin') return true
     return systemPreferences.askForMediaAccess('microphone')
   })
 
-  ipcMain.handle('permissions:open-settings', async (_event, kind: 'screen' | 'microphone') => {
+  ipcMain.handle(IPC_CHANNELS.openPermissionSettings, async (_event, kind: unknown) => {
     if (process.platform !== 'darwin') return
-    const pane = kind === 'screen' ? 'Privacy_ScreenCapture' : 'Privacy_Microphone'
-    await shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${pane}`)
+    const panes: Record<PermissionSettingsKind, string> = {
+      screen: 'Privacy_ScreenCapture',
+      microphone: 'Privacy_Microphone',
+      systemAudio: 'Privacy_AudioCapture'
+    }
+    if (typeof kind !== 'string' || !Object.hasOwn(panes, kind)) return
+    await shell.openExternal(
+      `x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?${panes[kind as PermissionSettingsKind]}`
+    )
   })
 
-  ipcMain.handle('preferences:get', () => preferenceStore.get())
-  ipcMain.handle('preferences:update', (_event, patch: Partial<AppPreferences>) =>
+  ipcMain.handle(IPC_CHANNELS.getPreferences, () => preferenceStore.get())
+  ipcMain.handle(IPC_CHANNELS.updatePreferences, (_event, patch: Partial<AppPreferences>) =>
     preferenceStore.update(sanitizePreferencePatch(patch))
   )
-  ipcMain.handle('preferences:choose-directory', async () => {
+  ipcMain.handle(IPC_CHANNELS.chooseOutputDirectory, async () => {
     const current = await preferenceStore.get()
     const result = await dialog.showOpenDialog(mainWindow!, {
       title: '녹화 저장 폴더 선택',
@@ -188,31 +200,31 @@ function registerIpc(): void {
     if (result.canceled || !result.filePaths[0]) return current
     return preferenceStore.update({ outputDirectory: result.filePaths[0] })
   })
-  ipcMain.handle('preferences:open-directory', async () => {
+  ipcMain.handle(IPC_CHANNELS.openOutputDirectory, async () => {
     const { outputDirectory } = await preferenceStore.get()
     await mkdir(outputDirectory, { recursive: true })
     const error = await shell.openPath(outputDirectory)
     if (error) throw new Error(error)
   })
 
-  ipcMain.handle('capture:prepare', (_event, request: PrepareCaptureRequest) => {
+  ipcMain.handle(IPC_CHANNELS.prepareCapture, (_event, request: PrepareCaptureRequest) => {
     pendingCapture = request
   })
 
-  ipcMain.handle('recording:create', async (_event, request: CreateRecordingRequest) => {
-    if (!['mp4', 'webm'].includes(request.extension)) throw new Error('Unsupported file extension.')
-    if (!['meeting', 'screen'].includes(request.mode)) throw new Error('Unsupported capture mode.')
+  ipcMain.handle(IPC_CHANNELS.createRecording, async (_event, request: CreateRecordingRequest) => {
+    if (!isRecordingExtension(request.extension)) throw new Error('Unsupported file extension.')
+    if (!isCaptureMode(request.mode)) throw new Error('Unsupported capture mode.')
     const preferences = await preferenceStore.get()
     return fileSink.create(preferences.outputDirectory, request.extension, request.mode)
   })
-  ipcMain.handle('recording:write', (_event, sessionId: string, chunk: Uint8Array) =>
+  ipcMain.handle(IPC_CHANNELS.writeRecordingChunk, (_event, sessionId: string, chunk: Uint8Array) =>
     chunk instanceof Uint8Array && chunk.byteLength <= 64 * 1024 * 1024
       ? fileSink.write(sessionId, chunk)
       : Promise.reject(new Error('Invalid recording chunk.'))
   )
-  ipcMain.handle('recording:finish', (_event, sessionId: string) => fileSink.finish(sessionId))
-  ipcMain.handle('recording:abort', (_event, sessionId: string) => fileSink.abort(sessionId))
-  ipcMain.handle('recording:reveal', (_event, filePath: string) => shell.showItemInFolder(filePath))
+  ipcMain.handle(IPC_CHANNELS.finishRecording, (_event, sessionId: string) => fileSink.finish(sessionId))
+  ipcMain.handle(IPC_CHANNELS.abortRecording, (_event, sessionId: string) => fileSink.abort(sessionId))
+  ipcMain.handle(IPC_CHANNELS.revealRecording, (_event, filePath: string) => shell.showItemInFolder(filePath))
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()

@@ -1,29 +1,29 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type {
-  AppPreferences,
-  CreateRecordingRequest,
-  PrepareCaptureRequest,
-  RecordingApi
+import {
+  IPC_CHANNELS,
+  type AppPreferences,
+  type CreateRecordingRequest,
+  type PrepareCaptureRequest,
+  type RecordingApi
 } from '../shared/contracts'
 
 const api: RecordingApi = {
   platform: process.platform,
-  listSources: () => ipcRenderer.invoke('sources:list'),
-  getPermissions: () => ipcRenderer.invoke('permissions:get'),
-  requestMicrophonePermission: () => ipcRenderer.invoke('permissions:request-microphone'),
-  openPermissionSettings: (kind) => ipcRenderer.invoke('permissions:open-settings', kind),
-  getPreferences: () => ipcRenderer.invoke('preferences:get'),
+  listSources: () => ipcRenderer.invoke(IPC_CHANNELS.listSources),
+  getPermissions: () => ipcRenderer.invoke(IPC_CHANNELS.getPermissions),
+  requestMicrophonePermission: () => ipcRenderer.invoke(IPC_CHANNELS.requestMicrophonePermission),
+  openPermissionSettings: (kind) => ipcRenderer.invoke(IPC_CHANNELS.openPermissionSettings, kind),
+  getPreferences: () => ipcRenderer.invoke(IPC_CHANNELS.getPreferences),
   updatePreferences: (patch: Partial<AppPreferences>) =>
-    ipcRenderer.invoke('preferences:update', patch),
-  chooseOutputDirectory: () => ipcRenderer.invoke('preferences:choose-directory'),
-  openOutputDirectory: () => ipcRenderer.invoke('preferences:open-directory'),
-  prepareCapture: (request: PrepareCaptureRequest) => ipcRenderer.invoke('capture:prepare', request),
-  createRecording: (request: CreateRecordingRequest) => ipcRenderer.invoke('recording:create', request),
-  writeRecordingChunk: (sessionId, chunk) => ipcRenderer.invoke('recording:write', sessionId, chunk),
-  finishRecording: (sessionId) => ipcRenderer.invoke('recording:finish', sessionId),
-  abortRecording: (sessionId) => ipcRenderer.invoke('recording:abort', sessionId),
-  revealRecording: (filePath) => ipcRenderer.invoke('recording:reveal', filePath)
+    ipcRenderer.invoke(IPC_CHANNELS.updatePreferences, patch),
+  chooseOutputDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.chooseOutputDirectory),
+  openOutputDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.openOutputDirectory),
+  prepareCapture: (request: PrepareCaptureRequest) => ipcRenderer.invoke(IPC_CHANNELS.prepareCapture, request),
+  createRecording: (request: CreateRecordingRequest) => ipcRenderer.invoke(IPC_CHANNELS.createRecording, request),
+  writeRecordingChunk: (sessionId, chunk) => ipcRenderer.invoke(IPC_CHANNELS.writeRecordingChunk, sessionId, chunk),
+  finishRecording: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.finishRecording, sessionId),
+  abortRecording: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.abortRecording, sessionId),
+  revealRecording: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.revealRecording, filePath)
 }
 
 contextBridge.exposeInMainWorld('recordingApi', api)
-
