@@ -22,6 +22,7 @@ import {
   type PrepareCaptureRequest
 } from '../shared/contracts'
 import { isCodecPreference, isQualityPresetId } from '../shared/recording-settings'
+import { requiresApplicationsInstall } from './macos-installation'
 import { PreferenceStore } from './preference-store'
 import { RecordingFileSink } from './recording-file-sink'
 
@@ -31,6 +32,60 @@ let allowWindowClose = false
 let closePromptOpen = false
 const preferenceStore = new PreferenceStore()
 const fileSink = new RecordingFileSink()
+
+async function ensureStableMacInstallation(): Promise<boolean> {
+  if (
+    !requiresApplicationsInstall(
+      process.platform,
+      app.isPackaged,
+      process.platform === 'darwin' && app.isInApplicationsFolder()
+    )
+  ) {
+    return true
+  }
+
+  const result = await dialog.showMessageBox({
+    type: 'info',
+    title: 'Meeting Capture 설치',
+    message: '화면 기록 권한을 유지하려면 먼저 앱을 설치해야 합니다.',
+    detail:
+      'DMG에서 직접 실행하면 macOS 권한 요청이 반복될 수 있습니다. 응용 프로그램 폴더로 이동한 뒤 자동으로 다시 실행합니다.',
+    buttons: ['응용 프로그램으로 이동', '종료'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true
+  })
+
+  if (result.response !== 0) {
+    app.quit()
+    return false
+  }
+
+  try {
+    if (app.moveToApplicationsFolder({ conflictHandler: () => true })) {
+      return false
+    }
+  } catch (error) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: '앱을 이동하지 못했습니다',
+      message: 'Meeting Capture를 응용 프로그램 폴더로 직접 옮겨 주세요.',
+      detail: error instanceof Error ? error.message : String(error),
+      buttons: ['확인']
+    })
+    app.quit()
+    return false
+  }
+
+  await dialog.showMessageBox({
+    type: 'warning',
+    title: '설치가 취소되었습니다',
+    message: '앱을 응용 프로그램 폴더로 옮긴 뒤 다시 실행해 주세요.',
+    buttons: ['확인']
+  })
+  app.quit()
+  return false
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -242,7 +297,9 @@ function registerIpc(): void {
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) app.quit()
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (!(await ensureStableMacInstallation())) return
+
   app.setAppUserModelId('com.meetingcapture.app')
   registerCaptureHandler()
   registerPermissionHandlers()

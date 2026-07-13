@@ -1,6 +1,6 @@
 {
   "name": "meeting-capture",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A meeting-first screen, system audio, and microphone recorder for macOS and Windows.",
   "main": "out/main/index.js",
   "author": "Meeting Capture contributors",
@@ -50,11 +50,11 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": ["universal"]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": ["universal"]
         }
       ],
       "extendInfo": {
