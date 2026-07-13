@@ -20,7 +20,7 @@ describe('PreferenceStore', () => {
   let root: string
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'minuteframe-preferences-'))
+    root = await mkdtemp(join(tmpdir(), 'framenote-preferences-'))
     paths.userData = root
     paths.videos = join(root, 'Videos')
   })
@@ -44,7 +44,7 @@ describe('PreferenceStore', () => {
     }))
 
     await expect(new PreferenceStore().get()).resolves.toEqual({
-      outputDirectory: join(root, 'Videos', 'MinuteFrame'),
+      outputDirectory: join(root, 'Videos', 'FrameNote'),
       recordingFormat: 'auto',
       codecPreference: 'auto',
       storageMode: 'balanced',

@@ -5,7 +5,7 @@ project_root="$(cd "$(dirname "$0")/.." && pwd)"
 product_name="$(node -p "require('$project_root/package.json').build.productName")"
 app_path="${1:?Usage: verify-macos-bundle.sh /path/to/$product_name.app}"
 expected_identifier="$(node -p "require('$project_root/package.json').build.appId")"
-cursor_policy_path="$app_path/Contents/Resources/bin/minuteframe-cursor-policy.node"
+cursor_policy_path="$app_path/Contents/Resources/bin/framenote-cursor-policy.node"
 
 codesign --verify --deep --strict --verbose=2 "$app_path"
 codesign --verify --strict --verbose=2 "$cursor_policy_path"

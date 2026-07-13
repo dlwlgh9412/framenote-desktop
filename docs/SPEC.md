@@ -1,4 +1,4 @@
-# MinuteFrame 제품 사양
+# FrameNote 제품 사양
 
 ## 목표
 

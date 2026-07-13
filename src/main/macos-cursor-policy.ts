@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-const CURSOR_POLICY_FILENAME = 'minuteframe-cursor-policy.node'
+const CURSOR_POLICY_FILENAME = 'framenote-cursor-policy.node'
 
 export function resolveMacosCursorPolicyPath(
   isPackaged: boolean,

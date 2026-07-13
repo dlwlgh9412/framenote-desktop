@@ -7,7 +7,7 @@ app_id="$(node -p "require('$project_root/package.json').build.appId")"
 product_name="$(node -p "require('$project_root/package.json').build.productName")"
 permission_identity="D69F06BB-91BE-4A87-9B3A-88156B85CA54"
 helper_id="$app_id.audio-capture"
-staging_root="$(mktemp -d "${TMPDIR:-/tmp}/minuteframe-package.XXXXXX")"
+staging_root="$(mktemp -d "${TMPDIR:-/tmp}/framenote-package.XXXXXX")"
 unsigned_app="$project_root/release/mac-universal/$product_name.app"
 signed_app="$staging_root/$product_name.app"
 dmg_root="$staging_root/dmg"
@@ -32,8 +32,8 @@ npx electron-builder --mac --universal --dir --config.mac.identity=null
 
 ditto --norsrc "$unsigned_app" "$signed_app"
 codesign --force --deep --sign - "$signed_app"
-helper_path="$signed_app/Contents/Resources/bin/minuteframe-audio-capture"
-cursor_policy_path="$signed_app/Contents/Resources/bin/minuteframe-cursor-policy.node"
+helper_path="$signed_app/Contents/Resources/bin/framenote-audio-capture"
+cursor_policy_path="$signed_app/Contents/Resources/bin/framenote-cursor-policy.node"
 codesign \
   --force \
   --sign - \
@@ -48,7 +48,7 @@ codesign \
   --force \
   --sign - \
   --identifier "$app_id" \
-  --requirements "=designated => identifier \"$app_id\" and info[MinuteFramePermissionIdentity] = \"$permission_identity\"" \
+  --requirements "=designated => identifier \"$app_id\" and info[FrameNotePermissionIdentity] = \"$permission_identity\"" \
   "$signed_app"
 "$project_root/scripts/verify-macos-bundle.sh" "$signed_app"
 codesign -d -r- "$signed_app" 2>&1 | grep -F "$permission_identity" >/dev/null

@@ -1,9 +1,9 @@
 {
-  "name": "minute-frame",
-  "version": "0.2.4",
+  "name": "framenote-desktop",
+  "version": "0.3.0",
   "description": "A meeting-first screen and audio recorder for macOS and Windows.",
   "main": "out/main/index.js",
-  "author": "MinuteFrame contributors",
+  "author": "FrameNote contributors",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
@@ -38,9 +38,9 @@
     "vitest": "^3.2.4"
   },
   "build": {
-    "appId": "com.minuteframe.app",
-    "productName": "MinuteFrame",
-    "artifactName": "MinuteFrame-${version}-${os}-${arch}.${ext}",
+    "appId": "com.framenote.app",
+    "productName": "FrameNote",
+    "artifactName": "FrameNote-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -53,12 +53,12 @@
       "category": "public.app-category.productivity",
       "extraResources": [
         {
-          "from": "build/native/macos/minuteframe-audio-capture",
-          "to": "bin/minuteframe-audio-capture"
+          "from": "build/native/macos/framenote-audio-capture",
+          "to": "bin/framenote-audio-capture"
         },
         {
-          "from": "build/native/macos/minuteframe-cursor-policy.node",
-          "to": "bin/minuteframe-cursor-policy.node"
+          "from": "build/native/macos/framenote-cursor-policy.node",
+          "to": "bin/framenote-cursor-policy.node"
         }
       ],
       "target": [
@@ -74,15 +74,15 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "회의 참가자의 음성을 녹음하기 위해 마이크 접근이 필요합니다.",
         "NSAudioCaptureUsageDescription": "회의와 앱에서 재생되는 시스템 오디오를 녹음하기 위해 접근이 필요합니다.",
-        "MinuteFramePermissionIdentity": "D69F06BB-91BE-4A87-9B3A-88156B85CA54"
+        "FrameNotePermissionIdentity": "D69F06BB-91BE-4A87-9B3A-88156B85CA54"
       }
     },
     "win": {
       "icon": "build/icon.png",
       "extraResources": [
         {
-          "from": "build/native/windows/${arch}/minuteframe-audio-capture.exe",
-          "to": "bin/minuteframe-audio-capture.exe"
+          "from": "build/native/windows/${arch}/framenote-audio-capture.exe",
+          "to": "bin/framenote-audio-capture.exe"
         }
       ],
       "target": [

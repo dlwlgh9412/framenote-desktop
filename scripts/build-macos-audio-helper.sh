@@ -4,9 +4,9 @@ set -euo pipefail
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
 source_file="$project_root/native/macos/SystemAudioCapture.swift"
 output_dir="$project_root/build/native/macos"
-arm_binary="$output_dir/minuteframe-audio-capture-arm64"
-x64_binary="$output_dir/minuteframe-audio-capture-x64"
-output="$output_dir/minuteframe-audio-capture"
+arm_binary="$output_dir/framenote-audio-capture-arm64"
+x64_binary="$output_dir/framenote-audio-capture-x64"
+output="$output_dir/framenote-audio-capture"
 
 mkdir -p "$output_dir"
 xcrun --sdk macosx swiftc \

@@ -4,9 +4,9 @@ set -euo pipefail
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
 source_file="$project_root/native/macos/WindowCursorPolicy.mm"
 output_dir="$project_root/build/native/macos"
-arm_binary="$output_dir/minuteframe-cursor-policy-arm64.node"
-x64_binary="$output_dir/minuteframe-cursor-policy-x64.node"
-output="$output_dir/minuteframe-cursor-policy.node"
+arm_binary="$output_dir/framenote-cursor-policy-arm64.node"
+x64_binary="$output_dir/framenote-cursor-policy-x64.node"
+output="$output_dir/framenote-cursor-policy.node"
 
 mkdir -p "$output_dir"
 for architecture in arm64 x86_64; do

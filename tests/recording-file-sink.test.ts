@@ -31,7 +31,7 @@ describe('RecordingFileSink', () => {
   let outputDirectory: string
 
   beforeEach(async () => {
-    outputDirectory = await mkdtemp(join(tmpdir(), 'minuteframe-recording-'))
+    outputDirectory = await mkdtemp(join(tmpdir(), 'framenote-recording-'))
     blocker.started.clear()
   })
 

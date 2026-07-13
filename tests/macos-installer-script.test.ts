@@ -16,7 +16,7 @@ describe('macOS installer image', () => {
     expect(script).toContain('.pkg')
     expect(script).not.toContain('ln -s /Applications')
     expect(script).toContain('--requirements')
-    expect(script).toContain('MinuteFramePermissionIdentity')
+    expect(script).toContain('FrameNotePermissionIdentity')
     expect(script).toContain('helper_id="$app_id.audio-capture"')
     expect(script).toContain('identifier \"$helper_id\"')
     expect(script).toContain('cursor_policy_path=')

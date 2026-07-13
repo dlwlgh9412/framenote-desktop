@@ -11,7 +11,7 @@ set -euo pipefail
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
 version="$(node -p "require('$project_root/package.json').version")"
 product_name="$(node -p "require('$project_root/package.json').build.productName")"
-staging_root="$(mktemp -d "${TMPDIR:-/tmp}/minuteframe-release.XXXXXX")"
+staging_root="$(mktemp -d "${TMPDIR:-/tmp}/framenote-release.XXXXXX")"
 packaged_app="$project_root/release/mac-universal/$product_name.app"
 dmg_root="$staging_root/dmg"
 pkg_name="$product_name Installer.pkg"

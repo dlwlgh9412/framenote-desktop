@@ -12,8 +12,8 @@ const READY_TIMEOUT_MS = 15_000
 
 function helperPath(): string {
   const executable = process.platform === 'win32'
-    ? 'minuteframe-audio-capture.exe'
-    : 'minuteframe-audio-capture'
+    ? 'framenote-audio-capture.exe'
+    : 'framenote-audio-capture'
   return app.isPackaged
     ? join(process.resourcesPath, 'bin', executable)
     : join(

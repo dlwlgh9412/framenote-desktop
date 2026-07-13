@@ -49,8 +49,8 @@ jobs:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.MAC_INSTALLER_CSC_LINK }}
           P12_PASSWORD: ${{ secrets.MAC_INSTALLER_CSC_KEY_PASSWORD }}
         run: |
-          CERTIFICATE_PATH="$RUNNER_TEMP/minuteframe-installer.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/minuteframe-installer.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/framenote-installer.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/framenote-installer.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
           printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -71,5 +71,5 @@ jobs:
           MAC_INSTALLER_IDENTITY: ${{ secrets.MAC_INSTALLER_IDENTITY }}
       - uses: actions/upload-artifact@v4
         with:
-          name: minute-frame-${{ runner.os }}
+          name: framenote-desktop-${{ runner.os }}
           path: release/*

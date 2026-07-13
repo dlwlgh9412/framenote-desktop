@@ -1,4 +1,4 @@
-class MinuteFrameSystemAudioProcessor extends AudioWorkletProcessor {
+class FrameNoteSystemAudioProcessor extends AudioWorkletProcessor {
   constructor() {
     super()
     this.chunks = []
@@ -49,4 +49,4 @@ class MinuteFrameSystemAudioProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('minuteframe-system-audio', MinuteFrameSystemAudioProcessor)
+registerProcessor('framenote-system-audio', FrameNoteSystemAudioProcessor)

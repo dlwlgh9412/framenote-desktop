@@ -31,6 +31,6 @@ if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
 cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE /D_WIN32_WINNT=0x0A00 ^
   "%PROJECT_ROOT%\native\windows\SystemAudioCapture.cpp" ^
-  /Fe:"%OUTPUT_DIR%\minuteframe-audio-capture.exe" ^
+  /Fe:"%OUTPUT_DIR%\framenote-audio-capture.exe" ^
   /link Ole32.lib Uuid.lib
 exit /b %errorlevel%

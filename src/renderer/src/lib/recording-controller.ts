@@ -326,7 +326,7 @@ export class RecordingController {
       )
       this.nativeAudioNode = new AudioWorkletNode(
         this.audioContext,
-        'minuteframe-system-audio',
+        'framenote-system-audio',
         {
           numberOfInputs: 0,
           numberOfOutputs: 1,

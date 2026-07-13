@@ -85,7 +85,7 @@ export function SettingsModal({
       >
         <header className="settings-modal__header">
           <div>
-            <p className="eyebrow">MinuteFrame 환경 설정</p>
+            <p className="eyebrow">FrameNote 환경 설정</p>
             <h2 id="settings-title">녹화 설정</h2>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="설정 닫기">

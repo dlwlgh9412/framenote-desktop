@@ -7,6 +7,8 @@ import Dispatch
 import Foundation
 import ScreenCaptureKit
 
+private let audioErrorDomain = "FrameNoteAudio"
+
 private enum SourceType: String {
     case screen
     case window
@@ -27,7 +29,7 @@ private struct CaptureTarget {
             id > 0
         else {
             throw NSError(
-                domain: "MinuteFrameAudio",
+                domain: audioErrorDomain,
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "Usage: --type screen|window --id <native-id>"]
             )
@@ -52,7 +54,7 @@ private func checked(_ status: OSStatus, _ operation: String) throws {
 
 private final class FramedPCMOutput {
     private let output = FileHandle.standardOutput
-    private let queue = DispatchQueue(label: "com.minuteframe.pcm-output", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.framenote.pcm-output", qos: .userInitiated)
     private let stateLock = NSLock()
     private let maxPendingBytes = 16 * 1024 * 1024
     private var pendingBytes = 0
@@ -125,7 +127,7 @@ private final class AudioOutput: NSObject, SCStreamOutput, SCStreamDelegate {
             let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)
         else {
             throw NSError(
-                domain: "MinuteFrameAudio",
+                domain: audioErrorDomain,
                 code: 2,
                 userInfo: [NSLocalizedDescriptionKey: "Audio format metadata is missing."]
             )
@@ -134,7 +136,7 @@ private final class AudioOutput: NSObject, SCStreamOutput, SCStreamDelegate {
         let format = streamDescription.pointee
         guard format.mFormatID == kAudioFormatLinearPCM else {
             throw NSError(
-                domain: "MinuteFrameAudio",
+                domain: audioErrorDomain,
                 code: 3,
                 userInfo: [NSLocalizedDescriptionKey: "ScreenCaptureKit returned non-PCM audio."]
             )
@@ -348,7 +350,7 @@ private final class CoreAudioProcessTapCapture {
 
     func start(processIDs: [AudioObjectID]) throws {
         let description = CATapDescription(stereoMixdownOfProcesses: processIDs)
-        description.name = "MinuteFrame selected application audio"
+        description.name = "FrameNote selected application audio"
         description.isPrivate = true
         try checked(
             AudioHardwareCreateProcessTap(description, &tapID),
@@ -358,8 +360,8 @@ private final class CoreAudioProcessTapCapture {
         let format = try tapFormat()
         let tapUID = try tapUniqueIdentifier()
         let aggregateDescription: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "MinuteFrame selected application audio",
-            kAudioAggregateDeviceUIDKey: "com.minuteframe.capture.\(UUID().uuidString)",
+            kAudioAggregateDeviceNameKey: "FrameNote selected application audio",
+            kAudioAggregateDeviceUIDKey: "com.framenote.capture.\(UUID().uuidString)",
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: tapUID]]
         ]
@@ -369,7 +371,7 @@ private final class CoreAudioProcessTapCapture {
         )
 
         let callbackQueue = DispatchQueue(
-            label: "com.minuteframe.process-audio",
+            label: "com.framenote.process-audio",
             qos: .userInitiated
         )
         let resampler = StereoLinearResampler(
@@ -425,7 +427,7 @@ private final class CoreAudioProcessTapCapture {
         )
         guard format.mFormatID == kAudioFormatLinearPCM else {
             throw NSError(
-                domain: "MinuteFrameAudio",
+                domain: audioErrorDomain,
                 code: 10,
                 userInfo: [NSLocalizedDescriptionKey: "The process tap returned non-PCM audio."]
             )
@@ -513,7 +515,7 @@ private final class CaptureSession {
         case .screen:
             guard let display = content.displays.first(where: { $0.displayID == target.id }) else {
                 throw NSError(
-                    domain: "MinuteFrameAudio",
+                    domain: audioErrorDomain,
                     code: 4,
                     userInfo: [NSLocalizedDescriptionKey: "The selected display is no longer available."]
                 )
@@ -527,21 +529,21 @@ private final class CaptureSession {
         case .window:
             guard let window = content.windows.first(where: { $0.windowID == target.id }) else {
                 throw NSError(
-                    domain: "MinuteFrameAudio",
+                    domain: audioErrorDomain,
                     code: 5,
                     userInfo: [NSLocalizedDescriptionKey: "The selected window is no longer available."]
                 )
             }
             guard let application = window.owningApplication else {
                 throw NSError(
-                    domain: "MinuteFrameAudio",
+                    domain: audioErrorDomain,
                     code: 7,
                     userInfo: [NSLocalizedDescriptionKey: "The selected window has no owning application."]
                 )
             }
             guard #available(macOS 14.2, *) else {
                 throw NSError(
-                    domain: "MinuteFrameAudio",
+                    domain: audioErrorDomain,
                     code: 11,
                     userInfo: [
                         NSLocalizedDescriptionKey:
@@ -593,7 +595,7 @@ private final class CaptureSession {
         try stream.addStreamOutput(
             output,
             type: .audio,
-            sampleHandlerQueue: DispatchQueue(label: "com.minuteframe.audio", qos: .userInitiated)
+            sampleHandlerQueue: DispatchQueue(label: "com.framenote.audio", qos: .userInitiated)
         )
         self.stream = stream
         try await stream.startCapture()
@@ -604,7 +606,7 @@ private final class CaptureSession {
 do {
     guard #available(macOS 13.0, *) else {
         throw NSError(
-            domain: "MinuteFrameAudio",
+            domain: audioErrorDomain,
             code: 6,
             userInfo: [NSLocalizedDescriptionKey: "System audio capture requires macOS 13 or newer."]
         )
