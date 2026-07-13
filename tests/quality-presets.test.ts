@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   estimateMegabytesPerHour,
   getEncodingPlan,
+  getEncodingPreview,
   getQualityPreset
 } from '@shared/recording-settings'
 
@@ -61,5 +62,18 @@ describe('getQualityPreset', () => {
     expect(compact4k.estimatedMegabytesPerHour).toBeLessThan(
       balanced4k.estimatedMegabytesPerHour
     )
+  })
+
+  it('uses the supported automatic codec for the shared size preview', () => {
+    const preview = getEncodingPreview({
+      recordingFormat: 'auto',
+      codecPreference: 'auto',
+      qualityPreset: 'ultra',
+      storageMode: 'compact'
+    }, (mimeType) => mimeType.includes('vp9'))
+
+    expect(preview.codec).toBe('vp9')
+    expect(preview.supported).toBe(true)
+    expect(preview.plan.videoBitsPerSecond).toBe(9_100_000)
   })
 })

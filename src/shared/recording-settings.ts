@@ -57,6 +57,19 @@ export interface EncodingPlan extends QualityPreset {
   estimatedMegabytesPerHour: number
 }
 
+export interface EncodingPreferences {
+  recordingFormat: RecordingFormatPreference
+  codecPreference: CodecPreference
+  qualityPreset: QualityPresetId
+  storageMode: StorageModeId
+}
+
+export interface EncodingPreview {
+  codec: ConcreteCodec
+  plan: EncodingPlan
+  supported: boolean
+}
+
 export const RECORDING_FORMAT_OPTIONS: Record<RecordingFormatPreference, RecordingFormatOption> = {
   auto: {
     id: 'auto',
@@ -259,6 +272,29 @@ export function getEncodingPlan(
     videoBitsPerSecond,
     audioBitsPerSecond,
     estimatedMegabytesPerHour: estimateMegabytesPerHour(videoBitsPerSecond, audioBitsPerSecond)
+  }
+}
+
+export function getEncodingPreview(
+  preferences: EncodingPreferences,
+  isSupported: (mimeType: string) => boolean
+): EncodingPreview {
+  let codec = getPreferredCodec(preferences.recordingFormat, preferences.codecPreference)
+  let supported = false
+  try {
+    codec = chooseCodec(
+      preferences.recordingFormat,
+      preferences.codecPreference,
+      isSupported
+    ).id
+    supported = true
+  } catch {
+    // Keep estimates visible while the UI explains that the selected encoder is unavailable.
+  }
+  return {
+    codec,
+    plan: getEncodingPlan(preferences.qualityPreset, preferences.storageMode, codec),
+    supported
   }
 }
 

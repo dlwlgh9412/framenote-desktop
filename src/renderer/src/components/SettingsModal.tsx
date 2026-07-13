@@ -21,10 +21,8 @@ import type {
 import {
   CODEC_PROFILES,
   COUNTDOWN_SECONDS,
-  chooseCodec,
   getCompatibleCodecs,
-  getEncodingPlan,
-  getPreferredCodec,
+  getEncodingPreview,
   isCodecSupported,
   RECORDING_FORMAT_OPTIONS,
   RECORDING_FORMATS,
@@ -35,10 +33,12 @@ import {
   type RecordingFormatPreference,
   type StorageModeId
 } from '../../../shared/recording-settings'
+import { formatEstimatedSize } from '../lib/formatting'
 
 interface SettingsModalProps {
   preferences: AppPreferences
   permissions: PermissionSnapshot | null
+  recordingActive: boolean
   onClose: () => void
   onChooseDirectory: () => void
   onOpenDirectory: () => void
@@ -57,15 +57,10 @@ function permissionLabel(status: PermissionSnapshot['screen'] | undefined): stri
   return '운영체제 관리'
 }
 
-function sizeLabel(megabytes: number): string {
-  return megabytes >= 1_000
-    ? `약 ${(megabytes / 1_000).toFixed(1)}GB/시간`
-    : `약 ${megabytes}MB/시간`
-}
-
 export function SettingsModal({
   preferences,
   permissions,
+  recordingActive,
   onClose,
   onChooseDirectory,
   onOpenDirectory,
@@ -76,21 +71,8 @@ export function SettingsModal({
   onOpenPermission,
   onResetScreenPermission
 }: SettingsModalProps): React.JSX.Element {
-  let preferredCodec = getPreferredCodec(preferences.recordingFormat, preferences.codecPreference)
-  try {
-    preferredCodec = chooseCodec(
-      preferences.recordingFormat,
-      preferences.codecPreference,
-      MediaRecorder.isTypeSupported
-    ).id
-  } catch {
-    // The disabled choices below explain when no matching encoder is available.
-  }
-  const encodingPlan = getEncodingPlan(
-    preferences.qualityPreset,
-    preferences.storageMode,
-    preferredCodec
-  )
+  const encodingPreview = getEncodingPreview(preferences, MediaRecorder.isTypeSupported)
+  const preferredCodec = encodingPreview.codec
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -216,7 +198,7 @@ export function SettingsModal({
               <strong>용량 전략</strong>
               <span>화질 프리셋은 유지하고 목표 비트레이트를 조절합니다.</span>
             </div>
-            <em>{sizeLabel(encodingPlan.estimatedMegabytesPerHour)}</em>
+            <em>{formatEstimatedSize(encodingPreview.plan.estimatedMegabytesPerHour)}</em>
           </div>
           <div className="storage-mode-list">
             {STORAGE_MODE_IDS.map((mode) => (
@@ -292,9 +274,11 @@ export function SettingsModal({
             <div className="permission-recovery">
               <div>
                 <strong>허용했는데도 작동하지 않나요?</strong>
-                <span>업데이트 전 권한 항목을 지우고 현재 앱을 다시 등록합니다.</span>
+                <span>{recordingActive
+                  ? '녹화를 끝낸 뒤 권한 연결을 초기화할 수 있습니다.'
+                  : '업데이트 전 권한 항목을 지우고 현재 앱을 다시 등록합니다.'}</span>
               </div>
-              <button type="button" onClick={onResetScreenPermission}>
+              <button type="button" onClick={onResetScreenPermission} disabled={recordingActive}>
                 <RotateCcw size={15} /> 권한 연결 초기화
               </button>
             </div>

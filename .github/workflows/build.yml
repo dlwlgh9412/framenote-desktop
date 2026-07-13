@@ -12,7 +12,7 @@ jobs:
       matrix:
         include:
           - os: macos-14
-            command: package:mac:adhoc
+            command: package:mac
           - os: windows-2025
             command: package:win
     runs-on: ${{ matrix.os }}
@@ -23,9 +23,27 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Require Developer ID signing credentials
+        if: runner.os == 'macOS'
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$CSC_LINK"
+          test -n "$CSC_KEY_PASSWORD"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_APP_SPECIFIC_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
       - run: npm run ${{ matrix.command }}
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: minute-frame-${{ runner.os }}

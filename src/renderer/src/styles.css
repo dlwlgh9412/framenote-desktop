@@ -284,6 +284,7 @@ button:focus-visible, select:focus-visible {
 .permission-recovery strong { color: #6c5840; font-size: 9px; }
 .permission-recovery span { margin-top: 3px; color: #9a856c; font-size: 7.5px; }
 .permission-recovery button { flex: none; display: flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid #e3d2bc; border-radius: 7px; color: #7f5d34; background: #fff; font-size: 8px; font-weight: 800; cursor: pointer; }
+.permission-recovery button:disabled { opacity: .48; cursor: not-allowed; }
 
 .spin { animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

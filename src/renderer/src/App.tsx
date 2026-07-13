@@ -28,10 +28,8 @@ import {
   type PermissionSnapshot
 } from '../../shared/contracts'
 import {
-  chooseCodec,
   getCompatibleCodecs,
-  getEncodingPlan,
-  getPreferredCodec,
+  getEncodingPreview,
   QUALITY_PRESETS,
   type CodecPreference,
   type CountdownSeconds,
@@ -49,6 +47,7 @@ import {
 } from '../../shared/recorder-machine'
 import { Toggle } from './components/Toggle'
 import { SettingsModal } from './components/SettingsModal'
+import { formatEstimatedSize } from './lib/formatting'
 import { normalizeError, RecordingController } from './lib/recording-controller'
 
 const placeholderPreferences: AppPreferences = createDefaultPreferences('불러오는 중…')
@@ -62,12 +61,6 @@ function formatDuration(seconds: number): string {
 
 function sourceType(source: CaptureSource): string {
   return source.type === 'screen' ? '전체 화면' : '창'
-}
-
-function sizeLabel(megabytes: number): string {
-  return megabytes >= 1_000
-    ? `약 ${(megabytes / 1_000).toFixed(1)}GB/시간`
-    : `약 ${megabytes}MB/시간`
 }
 
 function delay(milliseconds: number): Promise<void> {
@@ -291,21 +284,14 @@ export default function App(): React.JSX.Element {
   }
 
   const quality = QUALITY_PRESETS[preferences.qualityPreset]
-  const estimateCodec = useMemo(() => {
-    try {
-      return chooseCodec(
-        preferences.recordingFormat,
-        preferences.codecPreference,
-        MediaRecorder.isTypeSupported
-      ).id
-    } catch {
-      return getPreferredCodec(preferences.recordingFormat, preferences.codecPreference)
-    }
-  }, [preferences.codecPreference, preferences.recordingFormat])
-  const encodingPlan = getEncodingPlan(
-    preferences.qualityPreset,
-    preferences.storageMode,
-    estimateCodec
+  const encodingPreview = useMemo(
+    () => getEncodingPreview(preferences, MediaRecorder.isTypeSupported),
+    [
+      preferences.codecPreference,
+      preferences.qualityPreset,
+      preferences.recordingFormat,
+      preferences.storageMode
+    ]
   )
   const statusText = RECORDER_STATUS_LABELS[recorderState.status]
   const needsScreenPermission = permissions?.platform === 'darwin' && permissions.screen !== 'granted'
@@ -497,7 +483,7 @@ export default function App(): React.JSX.Element {
             <div className="quality-summary">
               <Gauge size={16} />
               <span>{quality.detail}</span>
-              <em>{sizeLabel(encodingPlan.estimatedMegabytesPerHour)}</em>
+              <em>{formatEstimatedSize(encodingPreview.plan.estimatedMegabytesPerHour)}</em>
             </div>
           </div>
 
@@ -557,6 +543,7 @@ export default function App(): React.JSX.Element {
         <SettingsModal
           preferences={preferences}
           permissions={permissions}
+          recordingActive={isActive}
           onClose={() => setSettingsOpen(false)}
           onChooseDirectory={() => void chooseDirectory()}
           onOpenDirectory={() => void window.recordingApi.openOutputDirectory()}

@@ -44,7 +44,12 @@ npm run package:mac:adhoc
 npm run package:win
 ```
 
-태그를 푸시하거나 GitHub Actions의 `Build desktop installers` 워크플로를 수동 실행하면 macOS와 Windows 러너가 각각 설치 파일을 만듭니다. 배포용 macOS 앱은 Developer ID 서명과 공증, Windows 앱은 코드 서명을 별도로 구성해야 합니다.
+태그를 푸시하거나 GitHub Actions의 `Build desktop installers` 워크플로를 수동 실행하면 macOS와 Windows 러너가 각각 설치 파일을 만듭니다. macOS 릴리스는 권한 신원을 버전 간 유지하기 위해 Developer ID 서명과 공증이 필수이며, 다음 GitHub Actions secret이 없으면 빌드를 의도적으로 중단합니다.
+
+- `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`: Developer ID Application 인증서와 암호
+- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`: Apple 공증 계정
+
+`package:mac:adhoc`은 인증서가 없는 로컬 테스트 전용입니다. Windows 공개 배포에는 별도의 코드 서명 인증서를 구성해야 합니다.
 
 ## 첫 실행 권한
 

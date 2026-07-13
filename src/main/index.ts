@@ -276,6 +276,16 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC_CHANNELS.resetScreenPermission, async () => {
     if (process.platform !== 'darwin') return
+    if (fileSink.hasActiveRecordings) {
+      await dialog.showMessageBox(mainWindow!, {
+        type: 'warning',
+        title: '녹화를 먼저 종료해 주세요',
+        message: '녹화 중에는 화면 기록 권한을 초기화할 수 없습니다.',
+        detail: '현재 녹화를 안전하게 저장한 뒤 다시 시도해 주세요.',
+        buttons: ['확인']
+      })
+      return
+    }
     const result = await dialog.showMessageBox(mainWindow!, {
       type: 'warning',
       title: '화면 기록 권한 다시 연결',
@@ -289,20 +299,25 @@ function registerIpc(): void {
     })
     if (result.response !== 0) return
 
-    try {
-      await execFileAsync('/usr/bin/tccutil', ['reset', 'ScreenCapture', APP_ID])
-    } catch (error) {
+    const resetResults = await Promise.allSettled(
+      [APP_ID, ...LEGACY_APP_IDS].map((bundleId) =>
+        execFileAsync('/usr/bin/tccutil', ['reset', 'ScreenCapture', bundleId])
+      )
+    )
+    if (resetResults.every(({ status }) => status === 'rejected')) {
+      const firstFailure = resetResults.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected'
+      )
       await dialog.showMessageBox(mainWindow!, {
         type: 'error',
         title: '권한을 초기화하지 못했습니다',
         message: 'macOS 화면 기록 권한을 변경하지 못했습니다.',
-        detail: error instanceof Error ? error.message : String(error),
+        detail: firstFailure?.reason instanceof Error
+          ? firstFailure.reason.message
+          : String(firstFailure?.reason ?? '알 수 없는 오류'),
         buttons: ['확인']
       })
       return
-    }
-    for (const bundleId of LEGACY_APP_IDS) {
-      await execFileAsync('/usr/bin/tccutil', ['reset', 'ScreenCapture', bundleId]).catch(() => undefined)
     }
     const args = process.argv
       .slice(1)

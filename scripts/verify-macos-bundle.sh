@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-app_path="${1:?Usage: verify-macos-bundle.sh /path/to/MinuteFrame.app}"
-expected_identifier="com.minuteframe.app"
+project_root="$(cd "$(dirname "$0")/.." && pwd)"
+product_name="$(node -p "require('$project_root/package.json').build.productName")"
+app_path="${1:?Usage: verify-macos-bundle.sh /path/to/$product_name.app}"
+expected_identifier="$(node -p "require('$project_root/package.json').build.appId")"
 
 codesign --verify --deep --strict --verbose=2 "$app_path"
 

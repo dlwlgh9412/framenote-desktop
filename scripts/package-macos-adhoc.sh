@@ -3,11 +3,13 @@ set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
 version="$(node -p "require('$project_root/package.json').version")"
+app_id="$(node -p "require('$project_root/package.json').build.appId")"
+product_name="$(node -p "require('$project_root/package.json').build.productName")"
 staging_root="$(mktemp -d "${TMPDIR:-/tmp}/minuteframe-package.XXXXXX")"
-unsigned_app="$project_root/release/mac-universal/MinuteFrame.app"
-signed_app="$staging_root/MinuteFrame.app"
+unsigned_app="$project_root/release/mac-universal/$product_name.app"
+signed_app="$staging_root/$product_name.app"
 dmg_root="$staging_root/dmg"
-output="$project_root/release/MinuteFrame-${version}-mac-universal.dmg"
+output="$project_root/release/${product_name}-${version}-mac-universal.dmg"
 mount_root="$staging_root/mount"
 mounted=false
 
@@ -24,16 +26,16 @@ npm run build
 npx electron-builder --mac --universal --dir --config.mac.identity=null
 
 ditto --norsrc "$unsigned_app" "$signed_app"
-codesign --force --deep --sign - --identifier com.minuteframe.app "$signed_app"
+codesign --force --deep --sign - --identifier "$app_id" "$signed_app"
 "$project_root/scripts/verify-macos-bundle.sh" "$signed_app"
 
 mkdir -p "$dmg_root"
-ditto --norsrc "$signed_app" "$dmg_root/MinuteFrame.app"
+ditto --norsrc "$signed_app" "$dmg_root/$product_name.app"
 ln -s /Applications "$dmg_root/Applications"
-"$project_root/scripts/verify-macos-bundle.sh" "$dmg_root/MinuteFrame.app"
+"$project_root/scripts/verify-macos-bundle.sh" "$dmg_root/$product_name.app"
 
 hdiutil create \
-  -volname "MinuteFrame ${version}" \
+  -volname "$product_name ${version}" \
   -srcfolder "$dmg_root" \
   -ov \
   -format UDZO \
@@ -43,7 +45,7 @@ hdiutil verify "$output"
 mkdir -p "$mount_root"
 hdiutil attach -nobrowse -readonly -mountpoint "$mount_root" "$output" >/dev/null
 mounted=true
-"$project_root/scripts/verify-macos-bundle.sh" "$mount_root/MinuteFrame.app"
+"$project_root/scripts/verify-macos-bundle.sh" "$mount_root/$product_name.app"
 hdiutil detach "$mount_root" >/dev/null
 mounted=false
 
