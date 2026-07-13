@@ -77,10 +77,8 @@ export class RecordingController {
   private audioContext?: AudioContext
   private session?: RecordingSession
   private writer?: ChunkWriter
-  private userPaused = false
-  private stopped = false
   private storagePressureTriggered = false
-  private stopPromise?: Promise<void>
+  private stopOperation?: Promise<string>
 
   constructor(private readonly callbacks: RecordingControllerCallbacks) {}
 
@@ -159,25 +157,25 @@ export class RecordingController {
   }
 
   pause(): void {
-    this.userPaused = true
     if (this.mediaRecorder?.state === 'recording') this.mediaRecorder.pause()
   }
 
   resume(): void {
-    this.userPaused = false
     if (this.mediaRecorder?.state === 'paused') this.mediaRecorder.resume()
   }
 
-  async stop(): Promise<string> {
-    if (this.stopped) return this.session?.filePath ?? ''
-    this.stopped = true
+  stop(): Promise<string> {
+    this.stopOperation ??= this.performStop()
+    return this.stopOperation
+  }
 
+  private async performStop(): Promise<string> {
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.stopPromise = new Promise((resolve) => {
+      const stopped = new Promise<void>((resolve) => {
         this.mediaRecorder!.addEventListener('stop', () => resolve(), { once: true })
       })
       this.mediaRecorder.stop()
-      await this.stopPromise
+      await stopped
     }
 
     try {

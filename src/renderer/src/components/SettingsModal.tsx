@@ -146,7 +146,7 @@ export function SettingsModal({
             <button className="permission-row" type="button" onClick={() => onOpenPermission('systemAudio')}>
               <Volume2 size={17} />
               <span>시스템 오디오</span>
-              <em>첫 녹화 시 요청</em>
+              <em>{permissions.systemAudio === 'unknown' ? '상태 확인 불가 · 녹화 시 요청' : permissionLabel(permissions.systemAudio)}</em>
               <ChevronRight size={16} />
             </button>
           </div>

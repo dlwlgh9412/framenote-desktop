@@ -116,6 +116,23 @@ export default function App(): React.JSX.Element {
     return () => window.clearInterval(timer)
   }, [recorderState.status])
 
+  useEffect(() => window.recordingApi.onQuitRequested(() => {
+    void (async () => {
+      const controller = controllerRef.current
+      if (controller) {
+        dispatch({ type: 'stop' })
+        try {
+          await controller.stop()
+        } catch (error) {
+          dispatch({ type: 'failed', message: normalizeError(error).message })
+        } finally {
+          controllerRef.current = null
+        }
+      }
+      window.recordingApi.confirmReadyToQuit()
+    })()
+  }), [])
+
   const updatePreferences = useCallback(async (patch: Partial<AppPreferences>) => {
     setPreferences((current) => ({ ...current, ...patch }))
     const saved = await window.recordingApi.updatePreferences(patch)

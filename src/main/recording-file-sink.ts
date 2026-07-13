@@ -59,10 +59,6 @@ export class RecordingFileSink {
     this.stopPowerBlockerIfIdle()
   }
 
-  async abortAll(): Promise<void> {
-    await Promise.all([...this.sessions.keys()].map((id) => this.abort(id)))
-  }
-
   private requireSession(sessionId: string): OpenRecording {
     const recording = this.sessions.get(sessionId)
     if (!recording) throw new Error('Recording session was not found.')

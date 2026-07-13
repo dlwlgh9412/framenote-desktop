@@ -1,9 +1,12 @@
-import type { CodecPreference, QualityPresetId } from './recording-settings'
+import {
+  RECORDING_EXTENSIONS,
+  type CodecPreference,
+  type QualityPresetId,
+  type RecordingExtension
+} from './recording-settings'
 
 export const CAPTURE_MODES = ['meeting', 'screen'] as const
 export type CaptureMode = (typeof CAPTURE_MODES)[number]
-export const RECORDING_EXTENSIONS = ['mp4', 'webm'] as const
-export type RecordingExtension = (typeof RECORDING_EXTENSIONS)[number]
 
 export interface CaptureSource {
   id: string
@@ -47,6 +50,7 @@ export function isRecordingExtension(value: unknown): value is RecordingExtensio
 export interface PermissionSnapshot {
   screen: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'
   microphone: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'
+  systemAudio: 'granted' | 'restricted' | 'unknown'
   systemAudioSupported: boolean
   platform: 'darwin' | 'win32' | 'other'
 }
@@ -84,7 +88,11 @@ export interface RecordingApi {
   finishRecording: (sessionId: string) => Promise<string>
   abortRecording: (sessionId: string) => Promise<void>
   revealRecording: (filePath: string) => Promise<void>
+  onQuitRequested: (callback: () => void) => () => void
+  confirmReadyToQuit: () => void
 }
+
+export type { RecordingExtension }
 
 export const IPC_CHANNELS = {
   listSources: 'sources:list',
@@ -100,5 +108,7 @@ export const IPC_CHANNELS = {
   writeRecordingChunk: 'recording:write',
   finishRecording: 'recording:finish',
   abortRecording: 'recording:abort',
-  revealRecording: 'recording:reveal'
+  revealRecording: 'recording:reveal',
+  requestQuit: 'app:request-quit',
+  readyToQuit: 'app:ready-to-quit'
 } as const

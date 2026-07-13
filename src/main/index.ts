@@ -28,6 +28,7 @@ import { RecordingFileSink } from './recording-file-sink'
 let mainWindow: BrowserWindow | null = null
 let pendingCapture: PrepareCaptureRequest | null = null
 let allowWindowClose = false
+let closePromptOpen = false
 const preferenceStore = new PreferenceStore()
 const fileSink = new RecordingFileSink()
 
@@ -54,19 +55,20 @@ function createWindow(): void {
   mainWindow.on('close', async (event) => {
     if (allowWindowClose || !fileSink.hasActiveRecordings) return
     event.preventDefault()
+    if (closePromptOpen) return
+    closePromptOpen = true
     const result = await dialog.showMessageBox(mainWindow!, {
       type: 'warning',
       title: '녹화를 종료할까요?',
       message: '현재 녹화가 진행 중입니다.',
       detail: '앱을 닫으면 현재 파일이 정상적으로 마무리되지 않을 수 있습니다.',
-      buttons: ['계속 녹화', '종료'],
+      buttons: ['계속 녹화', '저장 후 종료'],
       cancelId: 0,
       defaultId: 0
     })
+    closePromptOpen = false
     if (result.response === 1) {
-      allowWindowClose = true
-      await fileSink.abortAll()
-      mainWindow?.close()
+      mainWindow?.webContents.send(IPC_CHANNELS.requestQuit)
     }
   })
 
@@ -101,11 +103,13 @@ function registerCaptureHandler(): void {
 }
 
 function registerPermissionHandlers(): void {
+  const isTrustedCapturePermission = (permission: string): boolean =>
+    permission === 'media' || permission === 'display-capture'
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    return permission === 'media' && webContents?.id === mainWindow?.webContents.id
+    return isTrustedCapturePermission(permission) && webContents?.id === mainWindow?.webContents.id
   })
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(permission === 'media' && webContents.id === mainWindow?.webContents.id)
+    callback(isTrustedCapturePermission(permission) && webContents.id === mainWindow?.webContents.id)
   })
 }
 
@@ -164,6 +168,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC_CHANNELS.getPermissions, (): PermissionSnapshot => ({
     screen: permissionStatus('screen'),
     microphone: permissionStatus('microphone'),
+    systemAudio: process.platform === 'darwin'
+      ? 'unknown'
+      : supportsSystemAudio() ? 'granted' : 'restricted',
     systemAudioSupported: supportsSystemAudio(),
     platform: platformName()
   }))
@@ -225,6 +232,11 @@ function registerIpc(): void {
   ipcMain.handle(IPC_CHANNELS.finishRecording, (_event, sessionId: string) => fileSink.finish(sessionId))
   ipcMain.handle(IPC_CHANNELS.abortRecording, (_event, sessionId: string) => fileSink.abort(sessionId))
   ipcMain.handle(IPC_CHANNELS.revealRecording, (_event, filePath: string) => shell.showItemInFolder(filePath))
+  ipcMain.on(IPC_CHANNELS.readyToQuit, (event) => {
+    if (event.sender.id !== mainWindow?.webContents.id) return
+    allowWindowClose = true
+    app.quit()
+  })
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()

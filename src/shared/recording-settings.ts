@@ -1,17 +1,19 @@
 export const CODEC_PREFERENCES = ['auto', 'h264', 'vp9', 'vp8'] as const
 export type CodecPreference = (typeof CODEC_PREFERENCES)[number]
 export type ConcreteCodec = Exclude<CodecPreference, 'auto'>
+export const RECORDING_EXTENSIONS = ['mp4', 'webm'] as const
+export type RecordingExtension = (typeof RECORDING_EXTENSIONS)[number]
 
 export interface CodecProfile {
   id: ConcreteCodec
   label: string
   detail: string
   mimeType: string
-  extension: 'mp4' | 'webm'
+  extension: RecordingExtension
 }
 
-export type QualityPresetId = 'efficient' | 'balanced' | 'detailed' | 'smooth'
 export const QUALITY_PRESET_IDS = ['efficient', 'balanced', 'detailed', 'smooth'] as const
+export type QualityPresetId = (typeof QUALITY_PRESET_IDS)[number]
 
 export interface QualityPreset {
   id: QualityPresetId

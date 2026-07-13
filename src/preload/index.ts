@@ -23,7 +23,13 @@ const api: RecordingApi = {
   writeRecordingChunk: (sessionId, chunk) => ipcRenderer.invoke(IPC_CHANNELS.writeRecordingChunk, sessionId, chunk),
   finishRecording: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.finishRecording, sessionId),
   abortRecording: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.abortRecording, sessionId),
-  revealRecording: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.revealRecording, filePath)
+  revealRecording: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.revealRecording, filePath),
+  onQuitRequested: (callback) => {
+    const listener = (): void => callback()
+    ipcRenderer.on(IPC_CHANNELS.requestQuit, listener)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.requestQuit, listener)
+  },
+  confirmReadyToQuit: () => ipcRenderer.send(IPC_CHANNELS.readyToQuit)
 }
 
 contextBridge.exposeInMainWorld('recordingApi', api)
