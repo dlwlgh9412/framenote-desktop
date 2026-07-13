@@ -125,9 +125,10 @@ export default function App(): React.JSX.Element {
           await controller.stop()
         } catch (error) {
           dispatch({ type: 'failed', message: normalizeError(error).message })
-        } finally {
           controllerRef.current = null
+          return
         }
+        controllerRef.current = null
       }
       window.recordingApi.confirmReadyToQuit()
     })()
