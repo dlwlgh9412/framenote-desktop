@@ -1,4 +1,10 @@
-import type { AppPreferences, RecordingSession } from '../../../shared/contracts'
+import type {
+  AppPreferences,
+  CaptureSource,
+  NativeSystemAudioRequest,
+  RecordingSession
+} from '../../../shared/contracts'
+import { getSystemAudioBackend, type SystemAudioBackend } from '../../../shared/audio-capture'
 import {
   chooseCodec,
   getEncodingPlan,
@@ -28,6 +34,7 @@ export interface RecordingControllerCallbacks {
   onWriteError: (error: Error) => void
   onStoragePressure: () => void
   onSystemAudioMuted: () => void
+  onSystemAudioError: (error: Error) => void
 }
 
 class ChunkWriter {
@@ -90,10 +97,14 @@ export class RecordingController {
   private storagePressureTriggered = false
   private stopOperation?: Promise<string>
   private abortOperation?: Promise<void>
+  private nativeSystemAudioStarted = false
+  private nativeAudioNode?: AudioWorkletNode
+  private removeNativeAudioDataListener?: () => void
+  private removeNativeAudioErrorListener?: () => void
 
   constructor(private readonly callbacks: RecordingControllerCallbacks) {}
 
-  async start(sourceId: string, preferences: AppPreferences): Promise<RecordingStartResult> {
+  async start(source: CaptureSource, preferences: AppPreferences): Promise<RecordingStartResult> {
     const codec = chooseCodec(
       preferences.recordingFormat,
       preferences.codecPreference,
@@ -105,8 +116,22 @@ export class RecordingController {
       codec.id
     )
 
+    const platform = window.recordingApi.platform === 'darwin' || window.recordingApi.platform === 'win32'
+      ? window.recordingApi.platform
+      : 'other'
+    const systemAudioBackend = getSystemAudioBackend(
+      platform,
+      source.type,
+      preferences.includeSystemAudio
+    )
+    const nativeSystemAudioRequest: NativeSystemAudioRequest = {
+      sourceId: source.id,
+      sourceType: source.type,
+      displayId: source.displayId
+    }
+
     await window.recordingApi.prepareCapture({
-      sourceId,
+      ...nativeSystemAudioRequest,
       includeSystemAudio: preferences.includeSystemAudio
     })
 
@@ -117,8 +142,15 @@ export class RecordingController {
           height: { ideal: quality.height },
           frameRate: { ideal: quality.frameRate, max: quality.frameRate }
         },
-        audio: preferences.includeSystemAudio
+        audio: systemAudioBackend === 'electron-loopback'
       })
+
+      const loopbackTrack = this.screenStream.getAudioTracks()[0]
+      if (systemAudioBackend === 'electron-loopback' && !loopbackTrack) {
+        throw new Error(
+          '시스템 오디오 트랙을 시작하지 못했습니다. 운영체제의 오디오 캡처 권한을 확인해 주세요.'
+        )
+      }
 
       if (preferences.includeMicrophone) {
         this.microphoneStream = await navigator.mediaDevices.getUserMedia({
@@ -136,7 +168,12 @@ export class RecordingController {
         })
       }
 
-      this.mixedStream = await this.createMixedStream(this.screenStream, this.microphoneStream)
+      this.mixedStream = await this.createMixedStream(
+        this.screenStream,
+        this.microphoneStream,
+        systemAudioBackend,
+        nativeSystemAudioRequest
+      )
       this.session = await window.recordingApi.createRecording({
         extension: codec.extension,
         mode: preferences.captureMode
@@ -157,16 +194,19 @@ export class RecordingController {
       })
       this.mediaRecorder.start(CHUNK_INTERVAL_MS)
 
-      const systemAudioTrack = this.screenStream.getAudioTracks()[0]
+      const systemAudioTrack = systemAudioBackend === 'electron-loopback'
+        ? this.screenStream.getAudioTracks()[0]
+        : undefined
       systemAudioTrack?.addEventListener('mute', this.callbacks.onSystemAudioMuted)
+      systemAudioTrack?.addEventListener('ended', this.callbacks.onSystemAudioMuted, { once: true })
 
       return {
-        previewStream: this.screenStream,
+        previewStream: this.mixedStream,
         filePath: this.session.filePath,
         codec,
-        hasSystemAudio: Boolean(
-          systemAudioTrack && systemAudioTrack.readyState === 'live' && !systemAudioTrack.muted
-        ),
+        hasSystemAudio: systemAudioBackend === 'native-content'
+          ? this.nativeSystemAudioStarted
+          : Boolean(systemAudioTrack && systemAudioTrack.readyState === 'live'),
         hasMicrophone: (this.microphoneStream?.getAudioTracks().length ?? 0) > 0
       }
     } catch (error) {
@@ -241,13 +281,16 @@ export class RecordingController {
 
   private async createMixedStream(
     screenStream: MediaStream,
-    microphoneStream?: MediaStream
+    microphoneStream: MediaStream | undefined,
+    systemAudioBackend: SystemAudioBackend,
+    nativeSystemAudioRequest: NativeSystemAudioRequest
   ): Promise<MediaStream> {
     const mixed = new MediaStream(screenStream.getVideoTracks())
     const audioStreams = [screenStream, microphoneStream].filter(
       (stream): stream is MediaStream => Boolean(stream?.getAudioTracks().length)
     )
-    if (audioStreams.length === 0) return mixed
+    const needsNativeSystemAudio = systemAudioBackend === 'native-content'
+    if (audioStreams.length === 0 && !needsNativeSystemAudio) return mixed
 
     this.audioContext = new AudioContext({ sampleRate: 48_000, latencyHint: 'playback' })
     const destination = this.audioContext.createMediaStreamDestination()
@@ -265,6 +308,34 @@ export class RecordingController {
       gain.gain.value = index === 0 && audioStreams.length > 1 ? 0.82 : 1
       source.connect(gain).connect(compressor)
     })
+
+    if (needsNativeSystemAudio) {
+      await this.audioContext.audioWorklet.addModule(
+        new URL('system-audio-worklet.js', window.location.href).href
+      )
+      this.nativeAudioNode = new AudioWorkletNode(
+        this.audioContext,
+        'minuteframe-system-audio',
+        {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [2]
+        }
+      )
+      const gain = this.audioContext.createGain()
+      gain.gain.value = microphoneStream ? 0.82 : 1
+      this.nativeAudioNode.connect(gain).connect(compressor)
+      this.removeNativeAudioDataListener = window.recordingApi.onNativeSystemAudioData((samples) => {
+        const copy = new Float32Array(samples)
+        this.nativeAudioNode?.port.postMessage(copy, [copy.buffer])
+      })
+      this.removeNativeAudioErrorListener = window.recordingApi.onNativeSystemAudioError((message) => {
+        this.callbacks.onSystemAudioError(new Error(message))
+      })
+      await window.recordingApi.startNativeSystemAudio(nativeSystemAudioRequest)
+      this.nativeSystemAudioStarted = true
+    }
+
     await ensureAudioContextRunning(this.audioContext)
     destination.stream.getAudioTracks().forEach((track) => mixed.addTrack(track))
     return mixed
@@ -293,6 +364,16 @@ export class RecordingController {
 
   private async releaseMediaResources(): Promise<void> {
     this.stopTracks()
+    if (this.nativeSystemAudioStarted) {
+      await window.recordingApi.stopNativeSystemAudio().catch(() => undefined)
+      this.nativeSystemAudioStarted = false
+    }
+    this.removeNativeAudioDataListener?.()
+    this.removeNativeAudioErrorListener?.()
+    this.removeNativeAudioDataListener = undefined
+    this.removeNativeAudioErrorListener = undefined
+    this.nativeAudioNode?.disconnect()
+    this.nativeAudioNode = undefined
     await this.audioContext?.close().catch(() => undefined)
   }
 

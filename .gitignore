@@ -3,6 +3,7 @@ out/
 dist/
 release/
 outputs/
+build/native/
 coverage/
 work/
 .DS_Store

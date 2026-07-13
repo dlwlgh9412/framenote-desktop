@@ -1,6 +1,6 @@
 {
   "name": "minute-frame",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A meeting-first screen and audio recorder for macOS and Windows.",
   "main": "out/main/index.js",
   "author": "MinuteFrame contributors",
@@ -13,9 +13,11 @@
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && npm run test && electron-vite build",
     "package": "npm run build && electron-builder",
-    "package:mac": "npm run build && electron-builder --mac",
+    "build:mac-audio": "./scripts/build-macos-audio-helper.sh",
+    "build:win-audio": "scripts\\build-windows-audio-helper.cmd",
+    "package:mac": "./scripts/package-macos-adhoc.sh",
     "package:mac:adhoc": "./scripts/package-macos-adhoc.sh",
-    "package:win": "npm run build && electron-builder --win"
+    "package:win": "npm run build:win-audio && npm run build && electron-builder --win"
   },
   "dependencies": {
     "lucide-react": "^0.525.0",
@@ -48,6 +50,12 @@
     "mac": {
       "icon": "build/icon.png",
       "category": "public.app-category.productivity",
+      "extraResources": [
+        {
+          "from": "build/native/macos/minuteframe-audio-capture",
+          "to": "bin/minuteframe-audio-capture"
+        }
+      ],
       "target": [
         {
           "target": "dmg",
@@ -60,11 +68,18 @@
       ],
       "extendInfo": {
         "NSMicrophoneUsageDescription": "회의 참가자의 음성을 녹음하기 위해 마이크 접근이 필요합니다.",
-        "NSAudioCaptureUsageDescription": "회의와 앱에서 재생되는 시스템 오디오를 녹음하기 위해 접근이 필요합니다."
+        "NSAudioCaptureUsageDescription": "회의와 앱에서 재생되는 시스템 오디오를 녹음하기 위해 접근이 필요합니다.",
+        "MinuteFramePermissionIdentity": "D69F06BB-91BE-4A87-9B3A-88156B85CA54"
       }
     },
     "win": {
       "icon": "build/icon.png",
+      "extraResources": [
+        {
+          "from": "build/native/windows/${arch}/minuteframe-audio-capture.exe",
+          "to": "bin/minuteframe-audio-capture.exe"
+        }
+      ],
       "target": [
         {
           "target": "nsis",

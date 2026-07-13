@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { startRecordingWithPreview } from '../src/renderer/src/lib/recording-start'
-import type { AppPreferences } from '../src/shared/contracts'
+import type { AppPreferences, CaptureSource } from '../src/shared/contracts'
 import type { RecordingStartResult } from '../src/renderer/src/lib/recording-controller'
 
 const preferences = {
@@ -15,6 +15,14 @@ const preferences = {
   microphoneDeviceId: '',
   outputDirectory: '/tmp'
 } satisfies AppPreferences
+
+const source = {
+  id: 'screen:1:0',
+  name: 'Screen 1',
+  type: 'screen',
+  thumbnailDataUrl: 'data:image/png;base64,',
+  displayId: '1'
+} satisfies CaptureSource
 
 function recordingResult(): RecordingStartResult {
   return {
@@ -46,7 +54,7 @@ describe('startRecordingWithPreview', () => {
       play: vi.fn().mockRejectedValue(new DOMException('preview failed', 'NotSupportedError'))
     }
 
-    await expect(startRecordingWithPreview(controller, 'screen:1', preferences, () => preview))
+    await expect(startRecordingWithPreview(controller, source, preferences, () => preview))
       .rejects.toThrow('preview failed')
     expect(controller.abort).toHaveBeenCalledOnce()
     expect(preview.srcObject).toBeNull()
@@ -63,7 +71,7 @@ describe('startRecordingWithPreview', () => {
       play: vi.fn().mockResolvedValue(undefined)
     }
 
-    await expect(startRecordingWithPreview(controller, 'screen:1', preferences, () => preview))
+    await expect(startRecordingWithPreview(controller, source, preferences, () => preview))
       .resolves.toBe(result)
     expect(controller.abort).not.toHaveBeenCalled()
     expect(preview.srcObject).toBe(result.previewStream)

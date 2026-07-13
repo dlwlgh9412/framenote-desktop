@@ -117,7 +117,15 @@ export type PermissionSettingsKind = 'screen' | 'microphone' | 'systemAudio'
 
 export interface PrepareCaptureRequest {
   sourceId: string
+  sourceType: CaptureSource['type']
+  displayId: string
   includeSystemAudio: boolean
+}
+
+export interface NativeSystemAudioRequest {
+  sourceId: string
+  sourceType: CaptureSource['type']
+  displayId: string
 }
 
 export interface CreateRecordingRequest {
@@ -142,6 +150,10 @@ export interface RecordingApi {
   chooseOutputDirectory: () => Promise<AppPreferences>
   openOutputDirectory: () => Promise<void>
   prepareCapture: (request: PrepareCaptureRequest) => Promise<void>
+  startNativeSystemAudio: (request: NativeSystemAudioRequest) => Promise<void>
+  stopNativeSystemAudio: () => Promise<void>
+  onNativeSystemAudioData: (callback: (samples: Float32Array) => void) => () => void
+  onNativeSystemAudioError: (callback: (message: string) => void) => () => void
   createRecording: (request: CreateRecordingRequest) => Promise<RecordingSession>
   writeRecordingChunk: (sessionId: string, chunk: Uint8Array) => Promise<void>
   finishRecording: (sessionId: string) => Promise<string>
@@ -164,6 +176,10 @@ export const IPC_CHANNELS = {
   chooseOutputDirectory: 'preferences:choose-directory',
   openOutputDirectory: 'preferences:open-directory',
   prepareCapture: 'capture:prepare',
+  startNativeSystemAudio: 'system-audio:start-native',
+  stopNativeSystemAudio: 'system-audio:stop-native',
+  nativeSystemAudioData: 'system-audio:native-data',
+  nativeSystemAudioError: 'system-audio:native-error',
   createRecording: 'recording:create',
   writeRecordingChunk: 'recording:write',
   finishRecording: 'recording:finish',

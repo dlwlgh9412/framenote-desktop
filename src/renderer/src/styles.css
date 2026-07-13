@@ -123,6 +123,10 @@ button:focus-visible, select:focus-visible {
 .preview__timer { position: absolute; right: 14px; bottom: 13px; display: flex; flex-direction: column; align-items: end; color: white; }
 .preview__timer strong { font-variant-numeric: tabular-nums; font-size: 18px; letter-spacing: .04em; }
 .preview__timer span { margin-top: 3px; color: rgba(255,255,255,.61); font-size: 9px; }
+.preview__notice {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 8px 10px; border-radius: 8px;
+  color: #ffe1bd; background: rgba(72, 43, 15, .82); backdrop-filter: blur(8px); font-size: 9px; line-height: 1.45;
+}
 
 .source-browser { flex: none; margin-top: 14px; }
 .permission-banner {
@@ -175,6 +179,21 @@ button:focus-visible, select:focus-visible {
 
 .control-group { padding: 17px 0; border-top: 1px solid #edf0f2; }
 .control-label { margin: 0 0 11px; color: #858f98; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.audio-mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.audio-mode-grid button {
+  min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 7px;
+  padding: 9px; border: 1px solid #e1e5e8; border-radius: 9px; color: #747e87; background: #fff;
+  text-align: left; cursor: pointer;
+}
+.audio-mode-grid button > svg:first-child { color: #8d96a0; }
+.audio-mode-grid button > span { min-width: 0; display: flex; flex-direction: column; }
+.audio-mode-grid button strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.audio-mode-grid button small { margin-top: 2px; overflow: hidden; color: #9da5ad; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.audio-mode-grid__check { visibility: hidden; color: var(--teal); }
+.audio-mode-grid button.active { border-color: rgba(79,70,223,.45); color: var(--teal); background: var(--teal-soft); }
+.audio-mode-grid button.active > svg:first-child { color: var(--teal); }
+.audio-mode-grid button.active .audio-mode-grid__check { visibility: visible; }
+.audio-mode-grid button:disabled { opacity: .5; cursor: default; }
 .option-row { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; column-gap: 9px; margin-top: 11px; }
 .option-row__icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; color: #57539c; background: #f1f1fa; }
 .option-row__copy { display: flex; flex-direction: column; min-width: 0; }

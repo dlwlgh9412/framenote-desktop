@@ -1,4 +1,4 @@
-import type { AppPreferences } from '../../../shared/contracts'
+import type { AppPreferences, CaptureSource } from '../../../shared/contracts'
 import type { RecordingController, RecordingStartResult } from './recording-controller'
 
 type RecordingStarter = Pick<RecordingController, 'start' | 'abort'>
@@ -6,7 +6,7 @@ type PreviewElement = Pick<HTMLVideoElement, 'play' | 'srcObject'>
 
 export async function startRecordingWithPreview(
   controller: RecordingStarter,
-  sourceId: string,
+  source: CaptureSource,
   preferences: AppPreferences,
   getPreview: () => PreviewElement | null
 ): Promise<RecordingStartResult> {
@@ -14,7 +14,7 @@ export async function startRecordingWithPreview(
   let preview: PreviewElement | null = null
 
   try {
-    result = await controller.start(sourceId, preferences)
+    result = await controller.start(source, preferences)
     preview = getPreview()
     if (preview) {
       preview.srcObject = result.previewStream

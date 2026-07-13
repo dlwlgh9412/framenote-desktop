@@ -14,6 +14,7 @@ import { release } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { APP_ID, APP_NAME, LEGACY_APP_IDS } from '../shared/brand'
+import { getSystemAudioBackend } from '../shared/audio-capture'
 import {
   IPC_CHANNELS,
   isCaptureMode,
@@ -21,11 +22,13 @@ import {
   sanitizePreferencePatch,
   type AppPreferences,
   type CreateRecordingRequest,
+  type NativeSystemAudioRequest,
   type PermissionSettingsKind,
   type PermissionSnapshot,
   type PrepareCaptureRequest
 } from '../shared/contracts'
 import { requiresApplicationsInstall } from './macos-installation'
+import { NativeSystemAudioManager } from './native-system-audio-manager'
 import { PreferenceStore } from './preference-store'
 import { RecordingFileSink } from './recording-file-sink'
 
@@ -37,6 +40,7 @@ let allowWindowClose = false
 let closePromptOpen = false
 const preferenceStore = new PreferenceStore()
 const fileSink = new RecordingFileSink()
+const nativeSystemAudio = new NativeSystemAudioManager()
 const execFileAsync = promisify(execFile)
 const OPEN_SCREEN_PERMISSION_SETTINGS_ARG = '--open-screen-permission-settings'
 
@@ -163,7 +167,13 @@ function registerCaptureHandler(): void {
 
     callback({
       video: source,
-      audio: capture.includeSystemAudio ? 'loopback' : undefined
+      audio: getSystemAudioBackend(
+        platformName(),
+        capture.sourceType,
+        capture.includeSystemAudio
+      ) === 'electron-loopback'
+        ? 'loopback'
+        : undefined
     })
   })
 }
@@ -317,6 +327,11 @@ function registerIpc(): void {
   ipcMain.handle(IPC_CHANNELS.prepareCapture, (_event, request: PrepareCaptureRequest) => {
     pendingCapture = request
   })
+  ipcMain.handle(
+    IPC_CHANNELS.startNativeSystemAudio,
+    (event, request: NativeSystemAudioRequest) => nativeSystemAudio.start(request, event.sender)
+  )
+  ipcMain.handle(IPC_CHANNELS.stopNativeSystemAudio, () => nativeSystemAudio.stop())
 
   ipcMain.handle(IPC_CHANNELS.createRecording, async (_event, request: CreateRecordingRequest) => {
     if (!isRecordingExtension(request.extension)) throw new Error('Unsupported file extension.')
@@ -368,4 +383,8 @@ app.on('second-instance', () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  void nativeSystemAudio.stop()
 })
