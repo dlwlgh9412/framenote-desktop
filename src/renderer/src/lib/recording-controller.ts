@@ -1,5 +1,9 @@
 import type { AppPreferences, RecordingSession } from '../../../shared/contracts'
-import { chooseCodec, getQualityPreset, type CodecProfile } from '../../../shared/recording-settings'
+import {
+  chooseCodec,
+  getEncodingPlan,
+  type ResolvedCodecProfile
+} from '../../../shared/recording-settings'
 
 const CHUNK_INTERVAL_MS = 1_000
 const PAUSE_THRESHOLD_BYTES = 32 * 1024 * 1024
@@ -8,7 +12,7 @@ const RESUME_THRESHOLD_BYTES = 8 * 1024 * 1024
 export interface RecordingStartResult {
   previewStream: MediaStream
   filePath: string
-  codec: CodecProfile
+  codec: ResolvedCodecProfile
   hasSystemAudio: boolean
   hasMicrophone: boolean
 }
@@ -83,8 +87,16 @@ export class RecordingController {
   constructor(private readonly callbacks: RecordingControllerCallbacks) {}
 
   async start(sourceId: string, preferences: AppPreferences): Promise<RecordingStartResult> {
-    const quality = getQualityPreset(preferences.qualityPreset)
-    const codec = chooseCodec(preferences.codecPreference, MediaRecorder.isTypeSupported)
+    const codec = chooseCodec(
+      preferences.recordingFormat,
+      preferences.codecPreference,
+      MediaRecorder.isTypeSupported
+    )
+    const quality = getEncodingPlan(
+      preferences.qualityPreset,
+      preferences.storageMode,
+      codec.id
+    )
 
     await window.recordingApi.prepareCapture({
       sourceId,

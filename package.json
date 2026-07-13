@@ -1,9 +1,9 @@
 {
-  "name": "meeting-capture",
-  "version": "0.1.2",
-  "description": "A meeting-first screen, system audio, and microphone recorder for macOS and Windows.",
+  "name": "minute-frame",
+  "version": "0.2.0",
+  "description": "A meeting-first screen and audio recorder for macOS and Windows.",
   "main": "out/main/index.js",
-  "author": "Meeting Capture contributors",
+  "author": "MinuteFrame contributors",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
@@ -35,9 +35,9 @@
     "vitest": "^3.2.4"
   },
   "build": {
-    "appId": "com.meetingcapture.app",
-    "productName": "Meeting Capture",
-    "artifactName": "Meeting-Capture-${version}-${os}-${arch}.${ext}",
+    "appId": "com.minuteframe.app",
+    "productName": "MinuteFrame",
+    "artifactName": "MinuteFrame-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },

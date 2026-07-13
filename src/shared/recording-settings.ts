@@ -1,18 +1,45 @@
+export const RECORDING_FORMATS = ['auto', 'mp4', 'webm'] as const
+export type RecordingFormatPreference = (typeof RECORDING_FORMATS)[number]
+export const RECORDING_EXTENSIONS = ['mp4', 'webm'] as const
+export type RecordingExtension = (typeof RECORDING_EXTENSIONS)[number]
+
 export const CODEC_PREFERENCES = ['auto', 'h264', 'vp9', 'vp8'] as const
 export type CodecPreference = (typeof CODEC_PREFERENCES)[number]
 export type ConcreteCodec = Exclude<CodecPreference, 'auto'>
-export const RECORDING_EXTENSIONS = ['mp4', 'webm'] as const
-export type RecordingExtension = (typeof RECORDING_EXTENSIONS)[number]
+
+export const STORAGE_MODE_IDS = ['compact', 'balanced', 'quality'] as const
+export type StorageModeId = (typeof STORAGE_MODE_IDS)[number]
+
+export const COUNTDOWN_SECONDS = [0, 3, 5] as const
+export type CountdownSeconds = (typeof COUNTDOWN_SECONDS)[number]
 
 export interface CodecProfile {
   id: ConcreteCodec
   label: string
   detail: string
-  mimeType: string
+  mimeTypes: readonly string[]
   extension: RecordingExtension
+  bitrateFactor: number
 }
 
-export const QUALITY_PRESET_IDS = ['efficient', 'balanced', 'detailed', 'smooth'] as const
+export interface ResolvedCodecProfile extends CodecProfile {
+  mimeType: string
+}
+
+export interface RecordingFormatOption {
+  id: RecordingFormatPreference
+  label: string
+  detail: string
+}
+
+export interface StorageMode {
+  id: StorageModeId
+  label: string
+  detail: string
+  bitrateMultiplier: number
+}
+
+export const QUALITY_PRESET_IDS = ['efficient', 'balanced', 'detailed', 'smooth', 'ultra'] as const
 export type QualityPresetId = (typeof QUALITY_PRESET_IDS)[number]
 
 export interface QualityPreset {
@@ -26,27 +53,80 @@ export interface QualityPreset {
   audioBitsPerSecond: number
 }
 
+export interface EncodingPlan extends QualityPreset {
+  estimatedMegabytesPerHour: number
+}
+
+export const RECORDING_FORMAT_OPTIONS: Record<RecordingFormatPreference, RecordingFormatOption> = {
+  auto: {
+    id: 'auto',
+    label: '자동 · 권장',
+    detail: 'MP4 우선, 미지원 시 WebM'
+  },
+  mp4: {
+    id: 'mp4',
+    label: 'MP4',
+    detail: '가장 넓은 재생 호환성'
+  },
+  webm: {
+    id: 'webm',
+    label: 'WebM',
+    detail: '효율적인 웹·장시간 녹화'
+  }
+}
+
 export const CODEC_PROFILES: Record<ConcreteCodec, CodecProfile> = {
   h264: {
     id: 'h264',
-    label: 'MP4 · H.264/AAC',
-    detail: '가장 넓은 재생 호환성',
-    mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-    extension: 'mp4'
+    label: 'H.264 / AAC',
+    detail: 'MP4용 범용 코덱',
+    mimeTypes: [
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4;codecs=avc1.42001E,mp4a.40.2',
+      'video/mp4'
+    ],
+    extension: 'mp4',
+    bitrateFactor: 1
   },
   vp9: {
     id: 'vp9',
-    label: 'WebM · VP9/Opus',
-    detail: '작은 용량과 높은 화질',
-    mimeType: 'video/webm;codecs=vp9,opus',
-    extension: 'webm'
+    label: 'VP9 / Opus',
+    detail: '같은 체감 화질에서 작은 용량',
+    mimeTypes: [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp09.00.10.08,opus'
+    ],
+    extension: 'webm',
+    bitrateFactor: 0.72
   },
   vp8: {
     id: 'vp8',
-    label: 'WebM · VP8/Opus',
-    detail: '오래된 장치용 대체 형식',
-    mimeType: 'video/webm;codecs=vp8,opus',
-    extension: 'webm'
+    label: 'VP8 / Opus',
+    detail: '오래된 장치용 WebM 대체 코덱',
+    mimeTypes: ['video/webm;codecs=vp8,opus'],
+    extension: 'webm',
+    bitrateFactor: 1.05
+  }
+}
+
+export const STORAGE_MODES: Record<StorageModeId, StorageMode> = {
+  compact: {
+    id: 'compact',
+    label: '절약',
+    detail: '정적인 회의 화면과 장시간 녹화',
+    bitrateMultiplier: 0.7
+  },
+  balanced: {
+    id: 'balanced',
+    label: '균형 · 권장',
+    detail: '화질과 용량의 균형',
+    bitrateMultiplier: 1
+  },
+  quality: {
+    id: 'quality',
+    label: '최상',
+    detail: '작은 글자와 빠른 움직임 보존',
+    bitrateMultiplier: 1.35
   }
 }
 
@@ -92,32 +172,114 @@ export const QUALITY_PRESETS: Record<QualityPresetId, QualityPreset> = {
     frameRate: 60,
     videoBitsPerSecond: 12_000_000,
     audioBitsPerSecond: 192_000
+  },
+  ultra: {
+    id: 'ultra',
+    label: '4K',
+    detail: '4K 발표·디자인 검토',
+    width: 3840,
+    height: 2160,
+    frameRate: 30,
+    videoBitsPerSecond: 18_000_000,
+    audioBitsPerSecond: 192_000
   }
 }
 
+export function getCompatibleCodecs(format: RecordingFormatPreference): ConcreteCodec[] {
+  if (format === 'mp4') return ['h264']
+  if (format === 'webm') return ['vp9', 'vp8']
+  return [...compatibilityOrder]
+}
+
+export function isCodecSupported(
+  codec: ConcreteCodec,
+  isSupported: (mimeType: string) => boolean
+): boolean {
+  return CODEC_PROFILES[codec].mimeTypes.some(isSupported)
+}
+
+export function getPreferredCodec(
+  format: RecordingFormatPreference,
+  preference: CodecPreference
+): ConcreteCodec {
+  if (preference !== 'auto' && getCompatibleCodecs(format).includes(preference)) return preference
+  return getCompatibleCodecs(format)[0]
+}
+
 export function chooseCodec(
+  format: RecordingFormatPreference,
   preference: CodecPreference,
   isSupported: (mimeType: string) => boolean
-): CodecProfile {
-  if (preference !== 'auto') {
-    const selected = CODEC_PROFILES[preference]
-    if (!isSupported(selected.mimeType)) {
-      throw new Error(`선택한 ${selected.label} 코덱을 현재 기기에서 사용할 수 없습니다.`)
-    }
-    return selected
+): ResolvedCodecProfile {
+  const compatible = getCompatibleCodecs(format)
+  if (preference !== 'auto' && !compatible.includes(preference)) {
+    if (format === 'mp4') throw new Error('MP4 파일 형식에서는 H.264 코덱만 사용할 수 있습니다.')
+    if (format === 'webm') throw new Error('WebM 파일 형식에서는 VP9 또는 VP8 코덱을 사용해야 합니다.')
   }
 
-  const supported = compatibilityOrder.find((codec) => isSupported(CODEC_PROFILES[codec].mimeType))
-  if (!supported) throw new Error('현재 기기에서 지원되는 녹화 코덱을 찾을 수 없습니다.')
-  return CODEC_PROFILES[supported]
+  const candidates = preference === 'auto' ? compatible : [preference]
+  for (const codec of candidates) {
+    const profile = CODEC_PROFILES[codec]
+    const mimeType = profile.mimeTypes.find(isSupported)
+    if (mimeType) return { ...profile, mimeType }
+  }
+
+  if (preference !== 'auto') {
+    throw new Error(`선택한 ${CODEC_PROFILES[preference].label} 코덱을 현재 기기에서 사용할 수 없습니다.`)
+  }
+  const formatLabel = format === 'auto' ? '' : `${RECORDING_FORMAT_OPTIONS[format].label} `
+  throw new Error(`현재 기기에서 지원되는 ${formatLabel}녹화 코덱을 찾을 수 없습니다.`)
+}
+
+export function estimateMegabytesPerHour(
+  videoBitsPerSecond: number,
+  audioBitsPerSecond: number
+): number {
+  return Math.round((videoBitsPerSecond + audioBitsPerSecond) * 3_600 / 8 / 1_000_000)
+}
+
+export function getEncodingPlan(
+  qualityId: QualityPresetId,
+  storageModeId: StorageModeId,
+  codec: ConcreteCodec
+): EncodingPlan {
+  const quality = QUALITY_PRESETS[qualityId]
+  const storageMode = STORAGE_MODES[storageModeId]
+  const videoBitsPerSecond = Math.round(
+    quality.videoBitsPerSecond * storageMode.bitrateMultiplier * CODEC_PROFILES[codec].bitrateFactor / 100_000
+  ) * 100_000
+  const audioBitsPerSecond = storageModeId === 'compact'
+    ? Math.min(quality.audioBitsPerSecond, 128_000)
+    : storageModeId === 'quality'
+      ? Math.max(quality.audioBitsPerSecond, 256_000)
+      : quality.audioBitsPerSecond
+
+  return {
+    ...quality,
+    videoBitsPerSecond,
+    audioBitsPerSecond,
+    estimatedMegabytesPerHour: estimateMegabytesPerHour(videoBitsPerSecond, audioBitsPerSecond)
+  }
 }
 
 export function getQualityPreset(id: QualityPresetId): QualityPreset {
   return QUALITY_PRESETS[id]
 }
 
+export function isRecordingFormatPreference(value: unknown): value is RecordingFormatPreference {
+  return typeof value === 'string' && RECORDING_FORMATS.includes(value as RecordingFormatPreference)
+}
+
 export function isCodecPreference(value: unknown): value is CodecPreference {
   return typeof value === 'string' && CODEC_PREFERENCES.includes(value as CodecPreference)
+}
+
+export function isStorageModeId(value: unknown): value is StorageModeId {
+  return typeof value === 'string' && STORAGE_MODE_IDS.includes(value as StorageModeId)
+}
+
+export function isCountdownSeconds(value: unknown): value is CountdownSeconds {
+  return typeof value === 'number' && COUNTDOWN_SECONDS.includes(value as CountdownSeconds)
 }
 
 export function isQualityPresetId(value: unknown): value is QualityPresetId {

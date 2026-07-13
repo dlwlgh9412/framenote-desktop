@@ -13,6 +13,7 @@ const api: RecordingApi = {
   getPermissions: () => ipcRenderer.invoke(IPC_CHANNELS.getPermissions),
   requestMicrophonePermission: () => ipcRenderer.invoke(IPC_CHANNELS.requestMicrophonePermission),
   openPermissionSettings: (kind) => ipcRenderer.invoke(IPC_CHANNELS.openPermissionSettings, kind),
+  resetScreenPermission: () => ipcRenderer.invoke(IPC_CHANNELS.resetScreenPermission),
   getPreferences: () => ipcRenderer.invoke(IPC_CHANNELS.getPreferences),
   updatePreferences: (patch: Partial<AppPreferences>) =>
     ipcRenderer.invoke(IPC_CHANNELS.updatePreferences, patch),

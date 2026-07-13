@@ -1,10 +1,11 @@
 import { app } from 'electron'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { APP_NAME } from '../shared/brand'
 import { createDefaultPreferences, type AppPreferences } from '../shared/contracts'
 
 const defaultPreferences = (): AppPreferences =>
-  createDefaultPreferences(join(app.getPath('videos'), 'Meeting Capture'))
+  createDefaultPreferences(join(app.getPath('videos'), APP_NAME))
 
 export class PreferenceStore {
   private readonly filePath = join(app.getPath('userData'), 'preferences.json')

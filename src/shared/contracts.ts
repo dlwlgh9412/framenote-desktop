@@ -1,7 +1,10 @@
 import {
   RECORDING_EXTENSIONS,
   type CodecPreference,
+  type CountdownSeconds,
   type QualityPresetId,
+  type RecordingFormatPreference,
+  type StorageModeId,
   type RecordingExtension
 } from './recording-settings'
 
@@ -19,7 +22,10 @@ export interface CaptureSource {
 
 export interface AppPreferences {
   outputDirectory: string
+  recordingFormat: RecordingFormatPreference
   codecPreference: CodecPreference
+  storageMode: StorageModeId
+  countdownSeconds: CountdownSeconds
   qualityPreset: QualityPresetId
   captureMode: CaptureMode
   includeSystemAudio: boolean
@@ -30,7 +36,10 @@ export interface AppPreferences {
 export function createDefaultPreferences(outputDirectory: string): AppPreferences {
   return {
     outputDirectory,
+    recordingFormat: 'auto',
     codecPreference: 'auto',
+    storageMode: 'balanced',
+    countdownSeconds: 3,
     qualityPreset: 'balanced',
     captureMode: 'meeting',
     includeSystemAudio: true,
@@ -78,6 +87,7 @@ export interface RecordingApi {
   getPermissions: () => Promise<PermissionSnapshot>
   requestMicrophonePermission: () => Promise<boolean>
   openPermissionSettings: (kind: PermissionSettingsKind) => Promise<void>
+  resetScreenPermission: () => Promise<void>
   getPreferences: () => Promise<AppPreferences>
   updatePreferences: (patch: Partial<AppPreferences>) => Promise<AppPreferences>
   chooseOutputDirectory: () => Promise<AppPreferences>
@@ -99,6 +109,7 @@ export const IPC_CHANNELS = {
   getPermissions: 'permissions:get',
   requestMicrophonePermission: 'permissions:request-microphone',
   openPermissionSettings: 'permissions:open-settings',
+  resetScreenPermission: 'permissions:reset-screen',
   getPreferences: 'preferences:get',
   updatePreferences: 'preferences:update',
   chooseOutputDirectory: 'preferences:choose-directory',

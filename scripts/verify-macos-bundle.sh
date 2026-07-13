@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-app_path="${1:?Usage: verify-macos-bundle.sh /path/to/Meeting Capture.app}"
-expected_identifier="com.meetingcapture.app"
+app_path="${1:?Usage: verify-macos-bundle.sh /path/to/MinuteFrame.app}"
+expected_identifier="com.minuteframe.app"
 
 codesign --verify --deep --strict --verbose=2 "$app_path"
 

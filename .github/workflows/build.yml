@@ -28,5 +28,5 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - uses: actions/upload-artifact@v4
         with:
-          name: meeting-capture-${{ runner.os }}
+          name: minute-frame-${{ runner.os }}
           path: release/*

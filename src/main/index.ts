@@ -11,6 +11,9 @@ import {
 import { join } from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { release } from 'node:os'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { APP_ID, APP_NAME, LEGACY_APP_IDS } from '../shared/brand'
 import {
   IPC_CHANNELS,
   isCaptureMode,
@@ -21,10 +24,18 @@ import {
   type PermissionSnapshot,
   type PrepareCaptureRequest
 } from '../shared/contracts'
-import { isCodecPreference, isQualityPresetId } from '../shared/recording-settings'
+import {
+  isCodecPreference,
+  isCountdownSeconds,
+  isQualityPresetId,
+  isRecordingFormatPreference,
+  isStorageModeId
+} from '../shared/recording-settings'
 import { requiresApplicationsInstall } from './macos-installation'
 import { PreferenceStore } from './preference-store'
 import { RecordingFileSink } from './recording-file-sink'
+
+app.setName(APP_NAME)
 
 let mainWindow: BrowserWindow | null = null
 let pendingCapture: PrepareCaptureRequest | null = null
@@ -32,6 +43,12 @@ let allowWindowClose = false
 let closePromptOpen = false
 const preferenceStore = new PreferenceStore()
 const fileSink = new RecordingFileSink()
+const execFileAsync = promisify(execFile)
+const OPEN_SCREEN_PERMISSION_SETTINGS_ARG = '--open-screen-permission-settings'
+
+function screenPermissionSettingsUrl(): string {
+  return 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture'
+}
 
 async function ensureStableMacInstallation(): Promise<boolean> {
   if (
@@ -46,7 +63,7 @@ async function ensureStableMacInstallation(): Promise<boolean> {
 
   const result = await dialog.showMessageBox({
     type: 'info',
-    title: 'Meeting Capture 설치',
+    title: `${APP_NAME} 설치`,
     message: '화면 기록 권한을 유지하려면 먼저 앱을 설치해야 합니다.',
     detail:
       'DMG에서 직접 실행하면 macOS 권한 요청이 반복될 수 있습니다. 응용 프로그램 폴더로 이동한 뒤 자동으로 다시 실행합니다.',
@@ -69,7 +86,7 @@ async function ensureStableMacInstallation(): Promise<boolean> {
     await dialog.showMessageBox({
       type: 'error',
       title: '앱을 이동하지 못했습니다',
-      message: 'Meeting Capture를 응용 프로그램 폴더로 직접 옮겨 주세요.',
+      message: `${APP_NAME}를 응용 프로그램 폴더로 직접 옮겨 주세요.`,
       detail: error instanceof Error ? error.message : String(error),
       buttons: ['확인']
     })
@@ -189,6 +206,15 @@ function sanitizePreferencePatch(patch: Partial<AppPreferences>): Partial<AppPre
   if (isCodecPreference(patch.codecPreference)) {
     safe.codecPreference = patch.codecPreference
   }
+  if (isRecordingFormatPreference(patch.recordingFormat)) {
+    safe.recordingFormat = patch.recordingFormat
+  }
+  if (isStorageModeId(patch.storageMode)) {
+    safe.storageMode = patch.storageMode
+  }
+  if (isCountdownSeconds(patch.countdownSeconds)) {
+    safe.countdownSeconds = patch.countdownSeconds
+  }
   if (isQualityPresetId(patch.qualityPreset)) {
     safe.qualityPreset = patch.qualityPreset
   }
@@ -248,6 +274,44 @@ function registerIpc(): void {
     )
   })
 
+  ipcMain.handle(IPC_CHANNELS.resetScreenPermission, async () => {
+    if (process.platform !== 'darwin') return
+    const result = await dialog.showMessageBox(mainWindow!, {
+      type: 'warning',
+      title: '화면 기록 권한 다시 연결',
+      message: '기존 화면 기록 권한 연결을 초기화할까요?',
+      detail:
+        '앱 업데이트 후 권한을 켜도 인식되지 않을 때 사용하세요. 앱이 재실행되고 macOS 설정에서 한 번 다시 허용해야 합니다.',
+      buttons: ['초기화하고 재실행', '취소'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true
+    })
+    if (result.response !== 0) return
+
+    try {
+      await execFileAsync('/usr/bin/tccutil', ['reset', 'ScreenCapture', APP_ID])
+    } catch (error) {
+      await dialog.showMessageBox(mainWindow!, {
+        type: 'error',
+        title: '권한을 초기화하지 못했습니다',
+        message: 'macOS 화면 기록 권한을 변경하지 못했습니다.',
+        detail: error instanceof Error ? error.message : String(error),
+        buttons: ['확인']
+      })
+      return
+    }
+    for (const bundleId of LEGACY_APP_IDS) {
+      await execFileAsync('/usr/bin/tccutil', ['reset', 'ScreenCapture', bundleId]).catch(() => undefined)
+    }
+    const args = process.argv
+      .slice(1)
+      .filter((argument) => argument !== OPEN_SCREEN_PERMISSION_SETTINGS_ARG)
+      .concat(OPEN_SCREEN_PERMISSION_SETTINGS_ARG)
+    app.relaunch({ args })
+    app.exit(0)
+  })
+
   ipcMain.handle(IPC_CHANNELS.getPreferences, () => preferenceStore.get())
   ipcMain.handle(IPC_CHANNELS.updatePreferences, (_event, patch: Partial<AppPreferences>) =>
     preferenceStore.update(sanitizePreferencePatch(patch))
@@ -300,11 +364,15 @@ if (!gotSingleInstanceLock) app.quit()
 app.whenReady().then(async () => {
   if (!(await ensureStableMacInstallation())) return
 
-  app.setAppUserModelId('com.meetingcapture.app')
+  app.setAppUserModelId(APP_ID)
   registerCaptureHandler()
   registerPermissionHandlers()
   registerIpc()
   createWindow()
+
+  if (process.argv.includes(OPEN_SCREEN_PERMISSION_SETTINGS_ARG)) {
+    setTimeout(() => void shell.openExternal(screenPermissionSettingsUrl()), 1_200)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

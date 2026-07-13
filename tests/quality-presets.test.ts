@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getQualityPreset } from '@shared/recording-settings'
+import {
+  estimateMegabytesPerHour,
+  getEncodingPlan,
+  getQualityPreset
+} from '@shared/recording-settings'
 
 describe('getQualityPreset', () => {
   it('maps the default meeting preset to balanced 1080p recording constraints', () => {
@@ -34,5 +38,28 @@ describe('getQualityPreset', () => {
       frameRate: 60,
       videoBitsPerSecond: 12_000_000
     })
+  })
+
+  it('offers a 4K preset for high-resolution screens', () => {
+    expect(getQualityPreset('ultra')).toMatchObject({
+      width: 3840,
+      height: 2160,
+      frameRate: 30,
+      videoBitsPerSecond: 18_000_000
+    })
+  })
+
+  it('reduces target bitrate for compact VP9 recordings and estimates their size', () => {
+    const compact4k = getEncodingPlan('ultra', 'compact', 'vp9')
+    const balanced4k = getEncodingPlan('ultra', 'balanced', 'h264')
+
+    expect(compact4k.videoBitsPerSecond).toBe(9_100_000)
+    expect(compact4k.audioBitsPerSecond).toBe(128_000)
+    expect(compact4k.estimatedMegabytesPerHour).toBe(
+      estimateMegabytesPerHour(9_100_000, 128_000)
+    )
+    expect(compact4k.estimatedMegabytesPerHour).toBeLessThan(
+      balanced4k.estimatedMegabytesPerHour
+    )
   })
 })

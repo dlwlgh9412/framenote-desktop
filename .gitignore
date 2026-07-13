@@ -4,5 +4,6 @@ dist/
 release/
 outputs/
 coverage/
+work/
 .DS_Store
 *.log
