@@ -38,6 +38,7 @@ import {
   getCompatibleCodecs,
   getEncodingPreview,
   QUALITY_PRESETS,
+  type AudioQualityId,
   type CodecPreference,
   type CountdownSeconds,
   type QualityPresetId,
@@ -573,6 +574,7 @@ export default function App(): React.JSX.Element {
     () => getEncodingPreview(preferences, MediaRecorder.isTypeSupported),
     [
       preferences.codecPreference,
+      preferences.audioQuality,
       preferences.qualityPreset,
       preferences.recordingFormat,
       preferences.storageMode
@@ -823,6 +825,11 @@ export default function App(): React.JSX.Element {
                 </button>
               ))}
             </div>
+            <div className="quality-selection" aria-live="polite">
+              <span>{quality.label} 설정</span>
+              <strong>{quality.width} × {quality.height}</strong>
+              <em>{quality.frameRate} fps</em>
+            </div>
             <div className="quality-summary">
               <Gauge size={16} />
               <span>{quality.detail}</span>
@@ -868,7 +875,13 @@ export default function App(): React.JSX.Element {
               <button type="button" title={preferences.outputDirectory} onClick={() => void chooseDirectory()} disabled={isActive}>
                 {preferences.outputDirectory}
               </button>
-              <button className="more-button" type="button" onClick={() => setSettingsOpen(true)} aria-label="저장 설정">
+              <button
+                className="more-button"
+                type="button"
+                onClick={() => void window.recordingApi.openOutputDirectory()}
+                aria-label="저장 폴더 열기"
+                title="저장 폴더 열기"
+              >
                 <MoreHorizontal size={17} />
               </button>
             </div>
@@ -909,6 +922,7 @@ export default function App(): React.JSX.Element {
             void updatePreferences({ recordingFormat: format, codecPreference })
           }}
           onChangeCodec={(codec: CodecPreference) => void updatePreferences({ codecPreference: codec })}
+          onChangeAudioQuality={(audioQuality: AudioQualityId) => void updatePreferences({ audioQuality })}
           onChangeStorageMode={(storageMode: StorageModeId) => void updatePreferences({ storageMode })}
           onChangeCountdown={(countdownSeconds: CountdownSeconds) => void updatePreferences({ countdownSeconds })}
           onOpenPermission={(kind) => void window.recordingApi.openPermissionSettings(kind)}

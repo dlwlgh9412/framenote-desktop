@@ -19,6 +19,8 @@ import type {
   PermissionSnapshot
 } from '../../../shared/contracts'
 import {
+  AUDIO_QUALITY_IDS,
+  AUDIO_QUALITY_OPTIONS,
   CODEC_PROFILES,
   COUNTDOWN_SECONDS,
   getCompatibleCodecs,
@@ -29,6 +31,7 @@ import {
   STORAGE_MODE_IDS,
   STORAGE_MODES,
   type CodecPreference,
+  type AudioQualityId,
   type CountdownSeconds,
   type RecordingFormatPreference,
   type StorageModeId
@@ -44,6 +47,7 @@ interface SettingsModalProps {
   onOpenDirectory: () => void
   onChangeFormat: (format: RecordingFormatPreference) => void
   onChangeCodec: (codec: CodecPreference) => void
+  onChangeAudioQuality: (quality: AudioQualityId) => void
   onChangeStorageMode: (mode: StorageModeId) => void
   onChangeCountdown: (seconds: CountdownSeconds) => void
   onOpenPermission: (kind: PermissionSettingsKind) => void
@@ -66,6 +70,7 @@ export function SettingsModal({
   onOpenDirectory,
   onChangeFormat,
   onChangeCodec,
+  onChangeAudioQuality,
   onChangeStorageMode,
   onChangeCountdown,
   onOpenPermission,
@@ -189,6 +194,29 @@ export function SettingsModal({
                 </button>
               )
             })}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="settings-section__title">
+            <Volume2 size={18} />
+            <div>
+              <strong>음질</strong>
+              <span>기존 음질을 유지하거나 더 높은 오디오 비트레이트를 선택합니다.</span>
+            </div>
+          </div>
+          <div className="audio-quality-list">
+            {AUDIO_QUALITY_IDS.map((quality) => (
+              <button
+                key={quality}
+                type="button"
+                className={preferences.audioQuality === quality ? 'selected' : ''}
+                onClick={() => onChangeAudioQuality(quality)}
+              >
+                <strong>{AUDIO_QUALITY_OPTIONS[quality].label}</strong>
+                <small>{AUDIO_QUALITY_OPTIONS[quality].detail}</small>
+              </button>
+            ))}
           </div>
         </div>
 

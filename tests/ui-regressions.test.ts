@@ -29,4 +29,26 @@ describe('desktop UI regressions', () => {
       /@container[^\{]*\(max-width:\s*72px\)[\s\S]*\.quality-grid button span\s*\{[^}]*display:\s*none/s
     )
   })
+
+  it('keeps recording controls evenly aligned and responsive', async () => {
+    const styles = await readFile(join(process.cwd(), 'src/renderer/src/styles.css'), 'utf8')
+    expect(styles).toMatch(
+      /\.active-controls\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/s
+    )
+    expect(styles).toMatch(/@container \(min-width:\s*350px\)[\s\S]*\.active-controls button/s)
+  })
+
+  it('opens the output directory from the path overflow button', async () => {
+    const app = await readFile(join(process.cwd(), 'src/renderer/src/App.tsx'), 'utf8')
+    expect(app).toMatch(
+      /className="more-button"[\s\S]*?openOutputDirectory\(\)[\s\S]*?aria-label="저장 폴더 열기"/
+    )
+  })
+
+  it('shows the selected quality resolution and frame rate below the presets', async () => {
+    const app = await readFile(join(process.cwd(), 'src/renderer/src/App.tsx'), 'utf8')
+    expect(app).toContain('className="quality-selection"')
+    expect(app).toContain('{quality.width} × {quality.height}')
+    expect(app).toContain('{quality.frameRate} fps')
+  })
 })

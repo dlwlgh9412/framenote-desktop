@@ -10,6 +10,9 @@ export type ConcreteCodec = Exclude<CodecPreference, 'auto'>
 export const STORAGE_MODE_IDS = ['compact', 'balanced', 'quality'] as const
 export type StorageModeId = (typeof STORAGE_MODE_IDS)[number]
 
+export const AUDIO_QUALITY_IDS = ['standard', 'high'] as const
+export type AudioQualityId = (typeof AUDIO_QUALITY_IDS)[number]
+
 export const COUNTDOWN_SECONDS = [0, 3, 5] as const
 export type CountdownSeconds = (typeof COUNTDOWN_SECONDS)[number]
 
@@ -39,7 +42,21 @@ export interface StorageMode {
   bitrateMultiplier: number
 }
 
-export const QUALITY_PRESET_IDS = ['efficient', 'balanced', 'detailed', 'smooth', 'ultra'] as const
+export interface AudioQualityOption {
+  id: AudioQualityId
+  label: string
+  detail: string
+  minimumBitsPerSecond?: number
+}
+
+export const QUALITY_PRESET_IDS = [
+  'efficient',
+  'balanced',
+  'detailed',
+  'smooth',
+  'ultra',
+  'ultraSmooth'
+] as const
 export type QualityPresetId = (typeof QUALITY_PRESET_IDS)[number]
 
 export interface QualityPreset {
@@ -62,6 +79,7 @@ export interface EncodingPreferences {
   codecPreference: CodecPreference
   qualityPreset: QualityPresetId
   storageMode: StorageModeId
+  audioQuality?: AudioQualityId
 }
 
 export interface EncodingPreview {
@@ -155,6 +173,20 @@ export const STORAGE_MODES: Record<StorageModeId, StorageMode> = {
   }
 }
 
+export const AUDIO_QUALITY_OPTIONS: Record<AudioQualityId, AudioQualityOption> = {
+  standard: {
+    id: 'standard',
+    label: '기본',
+    detail: '기존 프리셋과 용량 전략에 맞춤'
+  },
+  high: {
+    id: 'high',
+    label: '고음질',
+    detail: '48kHz · 최대 320kbps 목표',
+    minimumBitsPerSecond: 320_000
+  }
+}
+
 const compatibilityOrder: ConcreteCodec[] = ['h264', 'vp9', 'vp8']
 
 export const QUALITY_PRESETS: Record<QualityPresetId, QualityPreset> = {
@@ -207,6 +239,16 @@ export const QUALITY_PRESETS: Record<QualityPresetId, QualityPreset> = {
     frameRate: 30,
     videoBitsPerSecond: 32_000_000,
     audioBitsPerSecond: 192_000
+  },
+  ultraSmooth: {
+    id: 'ultraSmooth',
+    label: '4K 60',
+    detail: '4K 화면의 빠른 움직임',
+    width: 3840,
+    height: 2160,
+    frameRate: 60,
+    videoBitsPerSecond: 50_000_000,
+    audioBitsPerSecond: 256_000
   }
 }
 
@@ -270,18 +312,23 @@ export function estimateMegabytesPerHour(
 export function getEncodingPlan(
   qualityId: QualityPresetId,
   storageModeId: StorageModeId,
-  codec: ConcreteCodec
+  codec: ConcreteCodec,
+  audioQualityId: AudioQualityId = 'standard'
 ): EncodingPlan {
   const quality = QUALITY_PRESETS[qualityId]
   const storageMode = STORAGE_MODES[storageModeId]
   const videoBitsPerSecond = Math.round(
     quality.videoBitsPerSecond * storageMode.bitrateMultiplier * CODEC_PROFILES[codec].bitrateFactor / 100_000
   ) * 100_000
-  const audioBitsPerSecond = storageModeId === 'compact'
+  const strategyAudioBitsPerSecond = storageModeId === 'compact'
     ? Math.min(quality.audioBitsPerSecond, 128_000)
     : storageModeId === 'quality'
       ? Math.max(quality.audioBitsPerSecond, 256_000)
       : quality.audioBitsPerSecond
+  const audioBitsPerSecond = Math.max(
+    strategyAudioBitsPerSecond,
+    AUDIO_QUALITY_OPTIONS[audioQualityId].minimumBitsPerSecond ?? 0
+  )
 
   return {
     ...quality,
@@ -309,13 +356,23 @@ export function getEncodingPreview(
   }
   return {
     codec,
-    plan: getEncodingPlan(preferences.qualityPreset, preferences.storageMode, codec),
+    plan: getEncodingPlan(
+      preferences.qualityPreset,
+      preferences.storageMode,
+      codec,
+      preferences.audioQuality
+    ),
     supported
   }
 }
 
 export function getQualityPreset(id: QualityPresetId): QualityPreset {
   return QUALITY_PRESETS[id]
+}
+
+export function shouldPreferHighQualityH264(id: QualityPresetId): boolean {
+  const preset = QUALITY_PRESETS[id]
+  return preset.width > 1920 || preset.frameRate > 30
 }
 
 export function isRecordingFormatPreference(value: unknown): value is RecordingFormatPreference {
@@ -328,6 +385,10 @@ export function isCodecPreference(value: unknown): value is CodecPreference {
 
 export function isStorageModeId(value: unknown): value is StorageModeId {
   return typeof value === 'string' && STORAGE_MODE_IDS.includes(value as StorageModeId)
+}
+
+export function isAudioQualityId(value: unknown): value is AudioQualityId {
+  return typeof value === 'string' && AUDIO_QUALITY_IDS.includes(value as AudioQualityId)
 }
 
 export function isCountdownSeconds(value: unknown): value is CountdownSeconds {

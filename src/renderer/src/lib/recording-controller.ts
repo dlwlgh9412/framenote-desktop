@@ -9,6 +9,7 @@ import { getCaptureVideoConstraints } from '../../../shared/capture-constraints'
 import {
   chooseCodec,
   getEncodingPlan,
+  shouldPreferHighQualityH264,
   type ResolvedCodecProfile
 } from '../../../shared/recording-settings'
 
@@ -111,15 +112,14 @@ export class RecordingController {
       preferences.codecPreference,
       MediaRecorder.isTypeSupported,
       {
-        preferHighQualityH264: preferences.qualityPreset === 'detailed' ||
-          preferences.qualityPreset === 'smooth' ||
-          preferences.qualityPreset === 'ultra'
+        preferHighQualityH264: shouldPreferHighQualityH264(preferences.qualityPreset)
       }
     )
     const quality = getEncodingPlan(
       preferences.qualityPreset,
       preferences.storageMode,
-      codec.id
+      codec.id,
+      preferences.audioQuality
     )
 
     const platform = window.recordingApi.platform === 'darwin' || window.recordingApi.platform === 'win32'

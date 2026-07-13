@@ -7,6 +7,7 @@ describe('createDefaultPreferences', () => {
       recordingFormat: 'auto',
       codecPreference: 'auto',
       storageMode: 'balanced',
+      audioQuality: 'standard',
       countdownSeconds: 3,
       qualityPreset: 'balanced'
     })

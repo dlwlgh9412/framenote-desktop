@@ -7,6 +7,7 @@ const preferences = {
   recordingFormat: 'auto',
   codecPreference: 'auto',
   storageMode: 'balanced',
+  audioQuality: 'standard',
   countdownSeconds: 0,
   qualityPreset: 'balanced',
   captureMode: 'screen',

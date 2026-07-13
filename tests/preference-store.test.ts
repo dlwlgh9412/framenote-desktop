@@ -35,6 +35,7 @@ describe('PreferenceStore', () => {
       recordingFormat: 'avi',
       codecPreference: 'mpeg2',
       storageMode: 'tiny',
+      audioQuality: 'lossless',
       countdownSeconds: -30,
       qualityPreset: '8k',
       captureMode: 'broadcast',
@@ -48,6 +49,7 @@ describe('PreferenceStore', () => {
       recordingFormat: 'auto',
       codecPreference: 'auto',
       storageMode: 'balanced',
+      audioQuality: 'standard',
       countdownSeconds: 3,
       qualityPreset: 'balanced',
       captureMode: 'meeting',
@@ -62,6 +64,7 @@ describe('PreferenceStore', () => {
       recordingFormat: 'webm',
       codecPreference: 'vp9',
       qualityPreset: 'ultra',
+      audioQuality: 'high',
       includeMicrophone: false
     }))
 
@@ -69,6 +72,7 @@ describe('PreferenceStore', () => {
       recordingFormat: 'webm',
       codecPreference: 'vp9',
       storageMode: 'balanced',
+      audioQuality: 'high',
       countdownSeconds: 3,
       qualityPreset: 'ultra',
       includeMicrophone: false

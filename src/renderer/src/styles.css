@@ -176,7 +176,7 @@ button:focus-visible, select:focus-visible {
 .source-card__check { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: var(--teal); box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .source-list__empty { flex: 1; display: grid; place-items: center; border: 1px dashed #dbe0e4; border-radius: 9px; color: #9aa3ab; font-size: 11px; }
 
-.control-panel { padding: 20px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #dfe4e7 transparent; }
+.control-panel { container-type: inline-size; padding: 20px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #dfe4e7 transparent; }
 .control-panel__intro { margin-bottom: 19px; }
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .mode-switch button {
@@ -230,7 +230,7 @@ button:focus-visible, select:focus-visible {
 .permission-hint { display: flex; align-items: center; gap: 5px; margin: 9px 0 0 41px; padding: 0; border: 0; color: #b4762e; background: transparent; font-size: 9px; font-weight: 700; cursor: pointer; }
 .inline-warning { margin: 9px 0 0 41px; color: #a66725; font-size: 9px; line-height: 1.5; }
 
-.quality-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.quality-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .quality-grid button { container-type: inline-size; min-width: 0; overflow: hidden; padding: 8px 3px; border: 1px solid #e2e6e9; border-radius: 8px; background: #fff; cursor: pointer; }
 .quality-grid button strong, .quality-grid button span { display: block; }
 .quality-grid button strong { font-size: 9px; }
@@ -240,6 +240,13 @@ button:focus-visible, select:focus-visible {
 @container (max-width: 72px) {
   .quality-grid button span { display: none; }
 }
+.quality-selection {
+  min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
+  margin-top: 9px; padding: 8px 9px; border: 1px solid #e3e4fb; border-radius: 8px; background: #f7f7ff;
+}
+.quality-selection span { overflow: hidden; color: #6e7290; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.quality-selection strong { color: #343071; font-size: 11px; font-variant-numeric: tabular-nums; }
+.quality-selection em { padding-left: 8px; border-left: 1px solid #d9daf4; color: var(--teal); font-size: 10px; font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; }
 .quality-summary { display: flex; align-items: center; gap: 6px; margin-top: 9px; color: #8a949d; font-size: 8px; }
 .quality-summary svg { color: var(--teal); }
 .quality-summary em { margin-left: auto; color: #a0a8af; font-style: normal; }
@@ -254,8 +261,16 @@ button:focus-visible, select:focus-visible {
 .record-button:active { transform: translateY(1px); }
 .record-button:disabled { background: #c9cfd3; box-shadow: none; cursor: default; }
 .record-button__dot { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.92); border-radius: 50%; }
-.active-controls { display: grid; grid-template-columns: 1.2fr 1fr 1.35fr; gap: 7px; }
-.active-controls button { height: 48px; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 11px; font-size: 10px; font-weight: 800; cursor: pointer; }
+.active-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.active-controls button {
+  min-width: 0; min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 7px 5px; border-radius: 11px; font-size: 10px; font-weight: 800; text-align: center; cursor: pointer;
+}
+.active-controls button > svg { flex: none; }
+.active-controls button span { min-width: 0; min-height: 2.3em; display: grid; place-items: center; line-height: 1.15; word-break: keep-all; }
+@container (min-width: 350px) {
+  .active-controls button { min-height: 54px; flex-direction: row; gap: 6px; padding: 6px; }
+}
 .secondary-control { border: 1px solid #d9dee2; background: #fff; }
 .stop-control { border: 0; color: #fff; background: #26333c; }
 .destination-row { min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 6px; margin-top: 9px; color: #a0a8af; }
@@ -302,12 +317,15 @@ button:focus-visible, select:focus-visible {
 .choice-card > span:last-child { min-width: 0; display: flex; flex-direction: column; }
 .choice-card strong { font-size: 10px; }
 .choice-card small { margin-top: 3px; color: #929ca4; font-size: 7.5px; line-height: 1.35; }
-.storage-mode-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-.storage-mode-list button { min-width: 0; padding: 10px; border: 1px solid #e2e6e9; border-radius: 9px; background: #fff; text-align: left; cursor: pointer; }
-.storage-mode-list button strong, .storage-mode-list button small { display: block; }
-.storage-mode-list button strong { font-size: 10px; }
-.storage-mode-list button small { margin-top: 4px; color: #969fa7; font-size: 7.5px; line-height: 1.35; }
-.storage-mode-list button.selected { border-color: var(--teal); color: var(--teal); background: var(--teal-soft); }
+.storage-mode-list, .audio-quality-list { display: grid; gap: 7px; }
+.storage-mode-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.audio-quality-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.storage-mode-list button, .audio-quality-list button { min-width: 0; padding: 10px; border: 1px solid #e2e6e9; border-radius: 9px; background: #fff; text-align: left; cursor: pointer; }
+.storage-mode-list button strong, .storage-mode-list button small,
+.audio-quality-list button strong, .audio-quality-list button small { display: block; }
+.storage-mode-list button strong, .audio-quality-list button strong { font-size: 10px; }
+.storage-mode-list button small, .audio-quality-list button small { margin-top: 4px; color: #969fa7; font-size: 7.5px; line-height: 1.35; }
+.storage-mode-list button.selected, .audio-quality-list button.selected { border-color: var(--teal); color: var(--teal); background: var(--teal-soft); }
 .settings-note { margin: 9px 0 0; padding: 8px 9px; border-radius: 7px; color: #666d83; background: #f6f7fa; font-size: 8px; line-height: 1.45; }
 .countdown-options { display: flex; gap: 7px; }
 .countdown-options button { min-width: 80px; padding: 8px 12px; border: 1px solid #e2e6e9; border-radius: 8px; background: #fff; font-size: 9px; font-weight: 700; cursor: pointer; }
@@ -341,16 +359,16 @@ button:focus-visible, select:focus-visible {
 /* Desktop displays need readable controls without wasting the additional canvas. */
 .brand span:last-child, .permission-banner__copy small, .mode-switch small,
 .option-row__copy small, .settings-section__title span, .choice-card small,
-.storage-mode-list button small, .permission-recovery span { font-size: 11px; }
+.storage-mode-list button small, .audio-quality-list button small, .permission-recovery span { font-size: 11px; }
 .eyebrow, .control-label, .source-card__name, .audio-mode-grid button strong,
-.device-select-wrap select, .quality-grid button strong, .quality-summary,
+.device-select-wrap select, .quality-grid button strong, .quality-selection span, .quality-selection strong, .quality-selection em, .quality-summary,
 .destination-row > button:not(.more-button), .result-banner, .result-banner strong,
 .result-banner button, .path-card span, .text-button, .countdown-options button,
 .permission-recovery strong, .permission-recovery button { font-size: 12px; }
 .audio-mode-grid button small, .quality-grid button span, .result-banner small,
 .settings-note, .permission-row em { font-size: 10px; }
 .status-pill, .quiet-button, .mode-switch strong, .option-row__copy strong,
-.active-controls button, .choice-card strong, .storage-mode-list button strong,
+.active-controls button, .choice-card strong, .storage-mode-list button strong, .audio-quality-list button strong,
 .permission-row span { font-size: 13px; }
 
 @media (min-width: 1600px) and (min-height: 850px) {
@@ -367,7 +385,7 @@ button:focus-visible, select:focus-visible {
   .source-card { flex-basis: 178px; }
   .source-card__image { height: 88px; }
   .source-card__name { height: 34px; }
-  .record-button, .active-controls button { height: 54px; }
+  .record-button { height: 54px; }
   .settings-modal { width: min(780px, calc(100vw - 80px)); }
   .workspace svg, .settings-modal svg { transform: scale(1.15); transform-origin: center; }
 }

@@ -1,11 +1,13 @@
 import {
   RECORDING_EXTENSIONS,
+  isAudioQualityId,
   isCodecPreference,
   isCountdownSeconds,
   isQualityPresetId,
   isRecordingFormatPreference,
   isStorageModeId,
   type CodecPreference,
+  type AudioQualityId,
   type CountdownSeconds,
   type QualityPresetId,
   type RecordingFormatPreference,
@@ -30,6 +32,7 @@ export interface AppPreferences {
   recordingFormat: RecordingFormatPreference
   codecPreference: CodecPreference
   storageMode: StorageModeId
+  audioQuality: AudioQualityId
   countdownSeconds: CountdownSeconds
   qualityPreset: QualityPresetId
   captureMode: CaptureMode
@@ -44,6 +47,7 @@ export function createDefaultPreferences(outputDirectory: string): AppPreference
     recordingFormat: 'auto',
     codecPreference: 'auto',
     storageMode: 'balanced',
+    audioQuality: 'standard',
     countdownSeconds: 3,
     qualityPreset: 'balanced',
     captureMode: 'meeting',
@@ -73,6 +77,7 @@ export function sanitizePreferencePatch(value: unknown): Partial<AppPreferences>
   }
   if (isCodecPreference(value.codecPreference)) safe.codecPreference = value.codecPreference
   if (isStorageModeId(value.storageMode)) safe.storageMode = value.storageMode
+  if (isAudioQualityId(value.audioQuality)) safe.audioQuality = value.audioQuality
   if (isCountdownSeconds(value.countdownSeconds)) safe.countdownSeconds = value.countdownSeconds
   if (isQualityPresetId(value.qualityPreset)) safe.qualityPreset = value.qualityPreset
   if (isCaptureMode(value.captureMode)) safe.captureMode = value.captureMode

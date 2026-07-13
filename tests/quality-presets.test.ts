@@ -3,7 +3,8 @@ import {
   estimateMegabytesPerHour,
   getEncodingPlan,
   getEncodingPreview,
-  getQualityPreset
+  getQualityPreset,
+  shouldPreferHighQualityH264
 } from '@shared/recording-settings'
 
 describe('getQualityPreset', () => {
@@ -48,6 +49,23 @@ describe('getQualityPreset', () => {
       frameRate: 30,
       videoBitsPerSecond: 32_000_000
     })
+  })
+
+  it('adds a 4K 60fps preset without changing the existing 4K option', () => {
+    expect(getQualityPreset('ultraSmooth')).toMatchObject({
+      width: 3840,
+      height: 2160,
+      frameRate: 60,
+      videoBitsPerSecond: 50_000_000
+    })
+    expect(getQualityPreset('ultra').frameRate).toBe(30)
+    expect(shouldPreferHighQualityH264('ultraSmooth')).toBe(true)
+    expect(shouldPreferHighQualityH264('balanced')).toBe(false)
+  })
+
+  it('keeps existing audio targets by default and offers a 320kbps high-quality target', () => {
+    expect(getEncodingPlan('balanced', 'balanced', 'h264').audioBitsPerSecond).toBe(192_000)
+    expect(getEncodingPlan('balanced', 'compact', 'h264', 'high').audioBitsPerSecond).toBe(320_000)
   })
 
   it('reduces target bitrate for compact VP9 recordings and estimates their size', () => {
