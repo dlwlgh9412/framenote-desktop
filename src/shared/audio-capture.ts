@@ -4,6 +4,20 @@ export const AUDIO_CAPTURE_MODES = ['all', 'system', 'microphone', 'none'] as co
 export type AudioCaptureMode = (typeof AUDIO_CAPTURE_MODES)[number]
 export type SystemAudioBackend = 'none' | 'electron-loopback' | 'native-content'
 
+export function supportsSelectedApplicationAudio(
+  platform: 'darwin' | 'win32' | 'other',
+  kernelRelease: string
+): boolean {
+  const components = kernelRelease.split('.').map((value) => Number(value))
+  if (components.some((value) => !Number.isFinite(value))) return false
+  if (platform === 'darwin') {
+    const [major = 0, minor = 0] = components
+    return major > 23 || (major === 23 && minor >= 2)
+  }
+  if (platform === 'win32') return (components[2] ?? 0) >= 20_348
+  return false
+}
+
 export function audioModePatch(mode: AudioCaptureMode): {
   includeSystemAudio: boolean
   includeMicrophone: boolean

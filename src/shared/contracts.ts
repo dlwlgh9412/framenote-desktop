@@ -110,6 +110,7 @@ export interface PermissionSnapshot {
   microphone: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'
   systemAudio: 'granted' | 'restricted' | 'unknown'
   systemAudioSupported: boolean
+  selectedApplicationAudioSupported: boolean
   platform: 'darwin' | 'win32' | 'other'
 }
 

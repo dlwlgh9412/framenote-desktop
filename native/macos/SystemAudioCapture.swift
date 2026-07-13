@@ -272,6 +272,58 @@ private func processObjectIDs(descendingFrom rootPID: pid_t) throws -> [AudioObj
     }
 }
 
+private final class StereoLinearResampler {
+    private let inputSampleRate: Double
+    private let outputSampleRate: Double
+    private let inputFramesPerOutputFrame: Double
+    private var nextInputPosition = 0.0
+    private var inputFrameOffset: Int64 = 0
+    private var previousFrame: (left: Float, right: Float)?
+
+    init(inputSampleRate: Double, outputSampleRate: Double = 48_000) {
+        self.inputSampleRate = inputSampleRate
+        self.outputSampleRate = outputSampleRate
+        inputFramesPerOutputFrame = inputSampleRate / outputSampleRate
+    }
+
+    func process(_ input: [Float]) -> [Float] {
+        guard input.count >= 4, input.count % 2 == 0 else { return input }
+        guard abs(inputSampleRate - outputSampleRate) > 0.5 else { return input }
+
+        let frameCount = input.count / 2
+        let chunkStart = inputFrameOffset
+        let chunkEnd = chunkStart + Int64(frameCount)
+        var result: [Float] = []
+        result.reserveCapacity(Int(ceil(Double(frameCount) / inputFramesPerOutputFrame)) * 2)
+
+        func frame(at absoluteIndex: Int64) -> (Float, Float)? {
+            if absoluteIndex == chunkStart - 1, let previousFrame {
+                return (previousFrame.left, previousFrame.right)
+            }
+            let relativeIndex = absoluteIndex - chunkStart
+            guard relativeIndex >= 0, relativeIndex < Int64(frameCount) else { return nil }
+            let sampleIndex = Int(relativeIndex) * 2
+            return (input[sampleIndex], input[sampleIndex + 1])
+        }
+
+        while Int64(floor(nextInputPosition)) + 1 < chunkEnd {
+            let lowerIndex = Int64(floor(nextInputPosition))
+            guard
+                let lower = frame(at: lowerIndex),
+                let upper = frame(at: lowerIndex + 1)
+            else { break }
+            let fraction = Float(nextInputPosition - Double(lowerIndex))
+            result.append(lower.0 + (upper.0 - lower.0) * fraction)
+            result.append(lower.1 + (upper.1 - lower.1) * fraction)
+            nextInputPosition += inputFramesPerOutputFrame
+        }
+
+        previousFrame = (input[input.count - 2], input[input.count - 1])
+        inputFrameOffset = chunkEnd
+        return result
+    }
+}
+
 @available(macOS 14.2, *)
 private final class CoreAudioProcessTapCapture {
     private let output: FramedPCMOutput
@@ -288,17 +340,6 @@ private final class CoreAudioProcessTapCapture {
     }
 
     func start(processIDs: [AudioObjectID]) throws {
-        guard !processIDs.isEmpty else {
-            throw NSError(
-                domain: "MinuteFrameAudio",
-                code: 9,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "The selected application has no active Core Audio process yet. Play audio and try again."
-                ]
-            )
-        }
-
         let description = CATapDescription(stereoMixdownOfProcesses: processIDs)
         description.name = "MinuteFrame selected application audio"
         description.isPrivate = true
@@ -324,6 +365,10 @@ private final class CoreAudioProcessTapCapture {
             label: "com.minuteframe.process-audio",
             qos: .userInitiated
         )
+        let resampler = StereoLinearResampler(
+            inputSampleRate: format.mSampleRate,
+            outputSampleRate: 48_000
+        )
         var callback: AudioDeviceIOProcID?
         let output = self.output
         try checked(
@@ -332,7 +377,8 @@ private final class CoreAudioProcessTapCapture {
                 aggregateDeviceID,
                 callbackQueue
             ) { _, inputData, _, _, _ in
-                output.write(Self.interleavedStereoSamples(from: inputData, format: format))
+                let samples = Self.interleavedStereoSamples(from: inputData, format: format)
+                output.write(resampler.process(samples))
             },
             "Creating the process-audio callback"
         )
@@ -496,11 +542,32 @@ private final class CaptureSession {
                     ]
                 )
             }
-            let processIDs = try processObjectIDs(descendingFrom: application.processID)
-            let capture = CoreAudioProcessTapCapture(output: framedOutput)
-            try capture.start(processIDs: processIDs)
-            processTap = capture
-            writeStatus("READY")
+            try await monitorProcessAudio(descendingFrom: application.processID)
+        }
+    }
+
+    @available(macOS 14.2, *)
+    private func monitorProcessAudio(descendingFrom rootPID: pid_t) async throws {
+        var capturedProcessIDs = Set<AudioObjectID>()
+
+        func refreshCaptureIfNeeded() throws {
+            let processIDs = try processObjectIDs(descendingFrom: rootPID)
+            let nextProcessIDs = Set(processIDs)
+            guard !nextProcessIDs.isEmpty, nextProcessIDs != capturedProcessIDs else { return }
+
+            let replacement = CoreAudioProcessTapCapture(output: framedOutput)
+            try replacement.start(processIDs: processIDs)
+            processTap = replacement
+            capturedProcessIDs = nextProcessIDs
+        }
+
+        try refreshCaptureIfNeeded()
+        // Start the video recording even when the selected app has not opened an audio
+        // process yet. The low-frequency monitor attaches as soon as Meet/Zoom begins audio.
+        writeStatus("READY")
+        while !Task.isCancelled {
+            try await Task.sleep(nanoseconds: 500_000_000)
+            try refreshCaptureIfNeeded()
         }
     }
 

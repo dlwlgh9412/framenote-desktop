@@ -31,12 +31,14 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MAC_INSTALLER_IDENTITY: ${{ secrets.MAC_INSTALLER_IDENTITY }}
         run: |
           test -n "$CSC_LINK"
           test -n "$CSC_KEY_PASSWORD"
           test -n "$APPLE_ID"
           test -n "$APPLE_APP_SPECIFIC_PASSWORD"
           test -n "$APPLE_TEAM_ID"
+          test -n "$MAC_INSTALLER_IDENTITY"
       - run: npm run ${{ matrix.command }}
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -44,6 +46,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MAC_INSTALLER_IDENTITY: ${{ secrets.MAC_INSTALLER_IDENTITY }}
       - uses: actions/upload-artifact@v4
         with:
           name: minute-frame-${{ runner.os }}

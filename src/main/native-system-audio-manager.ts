@@ -2,7 +2,11 @@ import { app, type WebContents } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { join } from 'node:path'
 import { IPC_CHANNELS, type NativeSystemAudioRequest } from '../shared/contracts'
-import { FramedPcmParser, resolveNativeAudioTarget } from './system-audio-capture'
+import {
+  describeNativeAudioExit,
+  FramedPcmParser,
+  resolveNativeAudioTarget
+} from './system-audio-capture'
 
 const READY_TIMEOUT_MS = 15_000
 
@@ -82,15 +86,17 @@ export class NativeSystemAudioManager {
       })
       child.once('error', (error) => finish(error))
       child.once('exit', (code, signal) => {
+        const wasCurrentCapture = this.child === child
+        const recipient = wasCurrentCapture ? this.targetWebContents : undefined
+        const error = new Error(describeNativeAudioExit(code, signal))
+        if (!settled) finish(error)
+        else if (wasCurrentCapture && recipient && !recipient.isDestroyed()) {
+          recipient.send(IPC_CHANNELS.nativeSystemAudioError, error.message)
+        }
         if (this.child === child) {
           this.child = undefined
           this.targetWebContents = undefined
         }
-        const error = new Error(
-          `시스템 오디오 캡처가 종료되었습니다 (${signal ?? `code ${code ?? 'unknown'}`}).`
-        )
-        if (!settled) finish(error)
-        else if (code !== 0 && signal !== 'SIGTERM') this.reportError(error)
       })
     }).catch(async (error) => {
       await this.stop()
@@ -106,10 +112,19 @@ export class NativeSystemAudioManager {
     this.targetWebContents = undefined
     if (!child || child.killed) return
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(resolve, 1_500)
-      child.once('exit', () => {
+      let finished = false
+      const finish = (): void => {
+        if (finished) return
+        finished = true
         clearTimeout(timeout)
         resolve()
+      }
+      const timeout = setTimeout(() => {
+        child.kill('SIGKILL')
+        finish()
+      }, 1_500)
+      child.once('exit', () => {
+        finish()
       })
       child.kill('SIGTERM')
     })

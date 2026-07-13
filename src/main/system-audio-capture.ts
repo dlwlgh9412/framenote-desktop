@@ -7,6 +7,13 @@ export interface NativeAudioTarget {
   id: number
 }
 
+export function describeNativeAudioExit(
+  code: number | null,
+  signal: NodeJS.Signals | null
+): string {
+  return `시스템 오디오 캡처가 종료되었습니다 (${signal ?? `code ${code ?? 'unknown'}`}).`
+}
+
 export function resolveNativeAudioTarget(request: NativeSystemAudioRequest | unknown): NativeAudioTarget {
   if (typeof request !== 'object' || request === null) {
     throw new Error('Invalid native audio capture request.')

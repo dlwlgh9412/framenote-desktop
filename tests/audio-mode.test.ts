@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   audioModePatch,
   getAudioCaptureMode,
-  getSystemAudioBackend
+  getSystemAudioBackend,
+  supportsSelectedApplicationAudio
 } from '../src/shared/audio-capture'
 
 describe('audio capture modes', () => {
@@ -18,6 +19,20 @@ describe('audio capture modes', () => {
     expect(getAudioCaptureMode(true, false)).toBe('system')
     expect(getAudioCaptureMode(false, true)).toBe('microphone')
     expect(getAudioCaptureMode(false, false)).toBe('none')
+  })
+})
+
+describe('selected-application audio OS support', () => {
+  it('requires Core Audio process taps on macOS 14.2 or newer', () => {
+    expect(supportsSelectedApplicationAudio('darwin', '23.1.0')).toBe(false)
+    expect(supportsSelectedApplicationAudio('darwin', '23.2.0')).toBe(true)
+    expect(supportsSelectedApplicationAudio('darwin', '25.5.0')).toBe(true)
+  })
+
+  it('requires Windows process loopback build 20348 or newer', () => {
+    expect(supportsSelectedApplicationAudio('win32', '10.0.19045')).toBe(false)
+    expect(supportsSelectedApplicationAudio('win32', '10.0.20348')).toBe(true)
+    expect(supportsSelectedApplicationAudio('win32', '10.0.26100')).toBe(true)
   })
 })
 

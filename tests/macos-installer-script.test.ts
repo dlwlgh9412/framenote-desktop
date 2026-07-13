@@ -6,6 +6,10 @@ import packageMetadata from '../package.json'
 describe('macOS installer image', () => {
   it('places a PKG installer in the DMG instead of requiring a manual app drag', async () => {
     const script = await readFile(join(process.cwd(), 'scripts/package-macos-adhoc.sh'), 'utf8')
+    const releaseScript = await readFile(
+      join(process.cwd(), 'scripts/package-macos-release.sh'),
+      'utf8'
+    )
 
     expect(script).toContain('productbuild')
     expect(script).toContain('.pkg')
@@ -14,6 +18,11 @@ describe('macOS installer image', () => {
     expect(script).toContain('MinuteFramePermissionIdentity')
     expect(script).toContain('helper_id="$app_id.audio-capture"')
     expect(script).toContain('identifier \"$helper_id\"')
-    expect(packageMetadata.scripts['package:mac']).toBe('./scripts/package-macos-adhoc.sh')
+    expect(packageMetadata.scripts['package:mac']).toBe('./scripts/package-macos-release.sh')
+    expect(packageMetadata.scripts['package:mac:adhoc']).toBe('./scripts/package-macos-adhoc.sh')
+    expect(releaseScript).toContain('productbuild --sign')
+    expect(releaseScript).toContain('notarytool submit')
+    expect(releaseScript).toContain('stapler staple')
+    expect(releaseScript).not.toContain('identity=null')
   })
 })

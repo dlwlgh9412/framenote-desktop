@@ -120,6 +120,8 @@ export default function App(): React.JSX.Element {
   const isActive = isRecorderActive(recorderState)
   const controlsLocked = controlsAreLocked(recorderState)
   const needsScreenPermission = permissions?.platform === 'darwin' && permissions.screen !== 'granted'
+  const selectedApplicationAudioUnavailable = selectedSource?.type === 'window' &&
+    permissions?.selectedApplicationAudioSupported === false
   const audioMode = getAudioCaptureMode(
     preferences.includeSystemAudio,
     preferences.includeMicrophone
@@ -275,6 +277,18 @@ export default function App(): React.JSX.Element {
 
   const changeAudioMode = (mode: AudioCaptureMode): void => {
     void updatePreferences(audioModePatch(mode))
+  }
+
+  const selectSource = (source: CaptureSource): void => {
+    setSelectedSourceId(source.id)
+    if (source.type === 'window' &&
+      permissions?.selectedApplicationAudioSupported === false &&
+      preferences.includeSystemAudio) {
+      void updatePreferences({ includeSystemAudio: false })
+      setAudioWarning(
+        '이 운영체제 버전에서는 선택 앱 소리 분리를 지원하지 않아 마이크/영상 모드로 전환했습니다.'
+      )
+    }
   }
 
   const stopRecording = useCallback(async () => {
@@ -502,7 +516,7 @@ export default function App(): React.JSX.Element {
                     key={source.id}
                     type="button"
                     className={`source-card ${selectedSourceId === source.id ? 'selected' : ''}`}
-                    onClick={() => setSelectedSourceId(source.id)}
+                    onClick={() => selectSource(source)}
                   >
                     <span className="source-card__image"><img src={source.thumbnailDataUrl} alt="" /></span>
                     <span className="source-card__name">
@@ -550,7 +564,8 @@ export default function App(): React.JSX.Element {
                   className={audioMode === mode ? 'active' : ''}
                   disabled={
                     isActive ||
-                    ((mode === 'all' || mode === 'system') && permissions?.systemAudioSupported === false)
+                    ((mode === 'all' || mode === 'system') &&
+                      (permissions?.systemAudioSupported === false || selectedApplicationAudioUnavailable))
                   }
                   onClick={() => changeAudioMode(mode)}
                 >
@@ -587,6 +602,11 @@ export default function App(): React.JSX.Element {
             )}
             {permissions?.systemAudioSupported === false && (
               <p className="inline-warning">이 macOS 버전은 가상 오디오 장치 없이 시스템 소리를 녹음할 수 없습니다.</p>
+            )}
+            {selectedApplicationAudioUnavailable && (
+              <p className="inline-warning">
+                선택 앱 소리 분리는 macOS 14.2+ 또는 Windows 10 빌드 20348+에서 사용할 수 있습니다.
+              </p>
             )}
           </div>
 

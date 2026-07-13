@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { FramedPcmParser, resolveNativeAudioTarget } from '../src/main/system-audio-capture'
+import {
+  describeNativeAudioExit,
+  FramedPcmParser,
+  resolveNativeAudioTarget
+} from '../src/main/system-audio-capture'
 import type { NativeSystemAudioRequest } from '../src/shared/contracts'
 
 describe('native audio target resolution', () => {
@@ -53,6 +57,13 @@ describe('FramedPcmParser', () => {
   })
 })
 
+describe('native audio helper lifecycle', () => {
+  it('treats even a clean unrequested helper exit as a capture failure', () => {
+    expect(describeNativeAudioExit(0, null)).toContain('code 0')
+    expect(describeNativeAudioExit(null, 'SIGKILL')).toContain('SIGKILL')
+  })
+})
+
 describe('macOS ScreenCaptureKit helper bootstrap', () => {
   it('uses ScreenCaptureKit for a display and a Core Audio process tap for a window app', async () => {
     const source = await readFile(
@@ -65,7 +76,11 @@ describe('macOS ScreenCaptureKit helper bootstrap', () => {
     expect(source).toContain('NSApplication.shared')
     expect(source).toContain('AudioHardwareCreateProcessTap')
     expect(source).toContain('AudioHardwareCreateAggregateDevice')
-    expect(source).toContain('processObjectIDs(descendingFrom: application.processID)')
+    expect(source).toContain('processObjectIDs(descendingFrom: rootPID)')
+    expect(source).toContain('monitorProcessAudio(descendingFrom: application.processID)')
+    expect(source).not.toContain('has no active Core Audio process yet')
+    expect(source).toContain('StereoLinearResampler')
+    expect(source).toContain('outputSampleRate: 48_000')
     expect(source).toContain('maxPendingBytes')
     expect(source).toContain('queue.async')
     expect(source).not.toContain('desktopIndependentWindow')

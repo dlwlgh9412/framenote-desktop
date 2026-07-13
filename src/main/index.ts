@@ -14,7 +14,10 @@ import { release } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { APP_ID, APP_NAME, LEGACY_APP_IDS } from '../shared/brand'
-import { getSystemAudioBackend } from '../shared/audio-capture'
+import {
+  getSystemAudioBackend,
+  supportsSelectedApplicationAudio
+} from '../shared/audio-capture'
 import {
   IPC_CHANNELS,
   isCaptureMode,
@@ -229,6 +232,10 @@ function registerIpc(): void {
       ? 'unknown'
       : supportsSystemAudio() ? 'granted' : 'restricted',
     systemAudioSupported: supportsSystemAudio(),
+    selectedApplicationAudioSupported: supportsSelectedApplicationAudio(
+      platformName(),
+      release()
+    ),
     platform: platformName()
   }))
 

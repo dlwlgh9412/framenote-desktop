@@ -15,7 +15,7 @@
     "package": "npm run build && electron-builder",
     "build:mac-audio": "./scripts/build-macos-audio-helper.sh",
     "build:win-audio": "scripts\\build-windows-audio-helper.cmd",
-    "package:mac": "./scripts/package-macos-adhoc.sh",
+    "package:mac": "./scripts/package-macos-release.sh",
     "package:mac:adhoc": "./scripts/package-macos-adhoc.sh",
     "package:win": "npm run build:win-audio && npm run build && electron-builder --win"
   },
