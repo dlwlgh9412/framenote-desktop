@@ -18,19 +18,13 @@ import {
   IPC_CHANNELS,
   isCaptureMode,
   isRecordingExtension,
+  sanitizePreferencePatch,
   type AppPreferences,
   type CreateRecordingRequest,
   type PermissionSettingsKind,
   type PermissionSnapshot,
   type PrepareCaptureRequest
 } from '../shared/contracts'
-import {
-  isCodecPreference,
-  isCountdownSeconds,
-  isQualityPresetId,
-  isRecordingFormatPreference,
-  isStorageModeId
-} from '../shared/recording-settings'
 import { requiresApplicationsInstall } from './macos-installation'
 import { PreferenceStore } from './preference-store'
 import { RecordingFileSink } from './recording-file-sink'
@@ -199,34 +193,6 @@ function supportsSystemAudio(): boolean {
   if (process.platform === 'win32') return true
   if (process.platform !== 'darwin') return false
   return Number(release().split('.')[0]) >= 22
-}
-
-function sanitizePreferencePatch(patch: Partial<AppPreferences>): Partial<AppPreferences> {
-  const safe: Partial<AppPreferences> = {}
-  if (isCodecPreference(patch.codecPreference)) {
-    safe.codecPreference = patch.codecPreference
-  }
-  if (isRecordingFormatPreference(patch.recordingFormat)) {
-    safe.recordingFormat = patch.recordingFormat
-  }
-  if (isStorageModeId(patch.storageMode)) {
-    safe.storageMode = patch.storageMode
-  }
-  if (isCountdownSeconds(patch.countdownSeconds)) {
-    safe.countdownSeconds = patch.countdownSeconds
-  }
-  if (isQualityPresetId(patch.qualityPreset)) {
-    safe.qualityPreset = patch.qualityPreset
-  }
-  if (isCaptureMode(patch.captureMode)) {
-    safe.captureMode = patch.captureMode
-  }
-  if (typeof patch.includeSystemAudio === 'boolean') safe.includeSystemAudio = patch.includeSystemAudio
-  if (typeof patch.includeMicrophone === 'boolean') safe.includeMicrophone = patch.includeMicrophone
-  if (typeof patch.microphoneDeviceId === 'string' && patch.microphoneDeviceId.length <= 512) {
-    safe.microphoneDeviceId = patch.microphoneDeviceId
-  }
-  return safe
 }
 
 function registerIpc(): void {

@@ -9,6 +9,12 @@ const CHUNK_INTERVAL_MS = 1_000
 const PAUSE_THRESHOLD_BYTES = 32 * 1024 * 1024
 const RESUME_THRESHOLD_BYTES = 8 * 1024 * 1024
 
+export async function ensureAudioContextRunning(
+  context: Pick<AudioContext, 'resume' | 'state'>
+): Promise<void> {
+  if (context.state === 'suspended') await context.resume()
+}
+
 export interface RecordingStartResult {
   previewStream: MediaStream
   filePath: string
@@ -83,6 +89,7 @@ export class RecordingController {
   private writer?: ChunkWriter
   private storagePressureTriggered = false
   private stopOperation?: Promise<string>
+  private abortOperation?: Promise<void>
 
   constructor(private readonly callbacks: RecordingControllerCallbacks) {}
 
@@ -177,18 +184,19 @@ export class RecordingController {
   }
 
   stop(): Promise<string> {
+    if (this.abortOperation) return this.abortOperation.then(() => '')
     this.stopOperation ??= this.performStop()
     return this.stopOperation
   }
 
+  abort(): Promise<void> {
+    if (this.stopOperation) return this.stopOperation.then(() => undefined)
+    this.abortOperation ??= this.performAbort()
+    return this.abortOperation
+  }
+
   private async performStop(): Promise<string> {
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      const stopped = new Promise<void>((resolve) => {
-        this.mediaRecorder!.addEventListener('stop', () => resolve(), { once: true })
-      })
-      this.mediaRecorder.stop()
-      await stopped
-    }
+    await this.stopMediaRecorder()
 
     try {
       await this.writer?.flush()
@@ -202,6 +210,26 @@ export class RecordingController {
       this.stopTracks()
       await this.audioContext?.close().catch(() => undefined)
     }
+  }
+
+  private async performAbort(): Promise<void> {
+    try {
+      await this.stopMediaRecorder().catch(() => undefined)
+      await this.writer?.flush().catch(() => undefined)
+      if (this.session) await window.recordingApi.abortRecording(this.session.id)
+    } finally {
+      this.stopTracks()
+      await this.audioContext?.close().catch(() => undefined)
+    }
+  }
+
+  private async stopMediaRecorder(): Promise<void> {
+    if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') return
+    const stopped = new Promise<void>((resolve) => {
+      this.mediaRecorder!.addEventListener('stop', () => resolve(), { once: true })
+    })
+    this.mediaRecorder.stop()
+    await stopped
   }
 
   private bindRecorderEvents(): void {
@@ -239,6 +267,7 @@ export class RecordingController {
       gain.gain.value = index === 0 && audioStreams.length > 1 ? 0.82 : 1
       source.connect(gain).connect(compressor)
     })
+    await ensureAudioContextRunning(this.audioContext)
     destination.stream.getAudioTracks().forEach((track) => mixed.addTrack(track))
     return mixed
   }

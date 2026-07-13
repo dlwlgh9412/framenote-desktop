@@ -48,7 +48,10 @@ import {
 import { Toggle } from './components/Toggle'
 import { SettingsModal } from './components/SettingsModal'
 import { formatEstimatedSize } from './lib/formatting'
+import { shouldRefreshSourcesForPermissionChange } from './lib/permission-refresh'
 import { normalizeError, RecordingController } from './lib/recording-controller'
+import { startRecordingWithPreview } from './lib/recording-start'
+import { SingleFlight } from './lib/single-flight'
 
 const placeholderPreferences: AppPreferences = createDefaultPreferences('불러오는 중…')
 
@@ -84,6 +87,11 @@ export default function App(): React.JSX.Element {
   const controllerRef = useRef<RecordingController | null>(null)
   const previewRef = useRef<HTMLVideoElement>(null)
   const stopRecordingRef = useRef<() => Promise<void>>(async () => undefined)
+  const permissionsRef = useRef<PermissionSnapshot | null>(null)
+  const nativeStateLoadedRef = useRef(false)
+  const sourceRefreshGateRef = useRef(new SingleFlight())
+  const focusRefreshGateRef = useRef(new SingleFlight())
+  const startRecordingGateRef = useRef(new SingleFlight())
 
   const filteredSources = useMemo(
     () => sources.filter((source) => source.type === sourceTab),
@@ -93,7 +101,12 @@ export default function App(): React.JSX.Element {
   const isActive = isRecorderActive(recorderState)
   const controlsLocked = controlsAreLocked(recorderState)
 
-  const refreshSources = useCallback(async () => {
+  const updatePermissionSnapshot = useCallback((snapshot: PermissionSnapshot) => {
+    permissionsRef.current = snapshot
+    setPermissions(snapshot)
+  }, [])
+
+  const refreshSources = useCallback(() => sourceRefreshGateRef.current.run(async () => {
     if (isActive) return
     setLoadingSources(true)
     try {
@@ -106,7 +119,7 @@ export default function App(): React.JSX.Element {
     } finally {
       setLoadingSources(false)
     }
-  }, [isActive])
+  }), [isActive])
 
   const refreshAudioDevices = useCallback(async () => {
     const devices = await navigator.mediaDevices.enumerateDevices()
@@ -115,39 +128,54 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     void (async () => {
-      const [savedPreferences, permissionSnapshot] = await Promise.all([
-        window.recordingApi.getPreferences(),
-        window.recordingApi.getPermissions()
-      ])
-      setPreferences(savedPreferences)
-      setPermissions(permissionSnapshot)
-      await refreshAudioDevices()
+      try {
+        const [savedPreferences, permissionSnapshot] = await Promise.all([
+          window.recordingApi.getPreferences(),
+          window.recordingApi.getPermissions()
+        ])
+        setPreferences(savedPreferences)
+        updatePermissionSnapshot(permissionSnapshot)
+        await refreshAudioDevices().catch(() => undefined)
 
-      if (permissionSnapshot.platform !== 'darwin' || permissionSnapshot.screen === 'granted') {
-        await refreshSources()
-      } else {
+        if (permissionSnapshot.platform !== 'darwin' || permissionSnapshot.screen === 'granted') {
+          await refreshSources()
+        } else {
+          setLoadingSources(false)
+        }
+      } catch {
         setLoadingSources(false)
+      } finally {
+        nativeStateLoadedRef.current = true
       }
     })()
   }, []) // Initial native state only.
 
   useEffect(() => {
     const refreshAfterSettings = (): void => {
-      void (async () => {
-        const permissionSnapshot = await window.recordingApi.getPermissions()
-        setPermissions(permissionSnapshot)
-        if (
-          !isActive &&
-          (permissionSnapshot.platform !== 'darwin' || permissionSnapshot.screen === 'granted')
-        ) {
+      if (!nativeStateLoadedRef.current) return
+      void focusRefreshGateRef.current.run(async () => {
+        const previous = permissionsRef.current
+        const next = await window.recordingApi.getPermissions()
+        updatePermissionSnapshot(next)
+        if (!isActive && shouldRefreshSourcesForPermissionChange(previous?.screen, next.screen)) {
           await refreshSources()
         }
-        await refreshAudioDevices()
-      })()
+        if (previous && previous.microphone !== next.microphone && next.microphone === 'granted') {
+          await refreshAudioDevices()
+        }
+      }).catch(() => undefined)
     }
     window.addEventListener('focus', refreshAfterSettings)
     return () => window.removeEventListener('focus', refreshAfterSettings)
-  }, [isActive, refreshAudioDevices, refreshSources])
+  }, [isActive, refreshAudioDevices, refreshSources, updatePermissionSnapshot])
+
+  useEffect(() => {
+    const refreshAfterDeviceChange = (): void => {
+      void refreshAudioDevices().catch(() => undefined)
+    }
+    navigator.mediaDevices.addEventListener('devicechange', refreshAfterDeviceChange)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', refreshAfterDeviceChange)
+  }, [refreshAudioDevices])
 
   useEffect(() => {
     if (recorderState.status !== 'recording') return
@@ -231,30 +259,44 @@ export default function App(): React.JSX.Element {
         },
         onWriteError: (error) => {
           dispatch({ type: 'failed', message: error.message })
-          void controller?.stop().catch(() => undefined)
-          controllerRef.current = null
+          const failedController = controller
+          void failedController?.abort()
+            .catch(() => undefined)
+            .finally(() => {
+              if (controllerRef.current === failedController) controllerRef.current = null
+              if (previewRef.current) previewRef.current.srcObject = null
+            })
         }
       })
       controllerRef.current = controller
 
-      const result = await controller.start(selectedSourceId, preferences)
-      if (previewRef.current) {
-        previewRef.current.srcObject = result.previewStream
-        await previewRef.current.play()
-      }
+      const result = await startRecordingWithPreview(
+        controller,
+        selectedSourceId,
+        preferences,
+        () => previewRef.current
+      )
       setActiveCodec(`${result.codec.extension.toUpperCase()} · ${result.codec.label}`)
       if (preferences.includeSystemAudio && !result.hasSystemAudio) {
         setAudioWarning('시스템 오디오 트랙이 감지되지 않았습니다. 권한을 확인해 주세요.')
       }
       dispatch({ type: 'capture_ready' })
-      setPermissions(await window.recordingApi.getPermissions())
-      await refreshAudioDevices()
     } catch (error) {
       setCountdownRemaining(null)
-      controllerRef.current = null
+      if (controllerRef.current === controller) controllerRef.current = null
       dispatch({ type: 'failed', message: normalizeError(error).message })
-      setPermissions(await window.recordingApi.getPermissions())
+      try {
+        updatePermissionSnapshot(await window.recordingApi.getPermissions())
+      } catch {
+        // The capture error above is the actionable failure.
+      }
+      return
     }
+
+    void window.recordingApi.getPermissions()
+      .then(updatePermissionSnapshot)
+      .catch(() => undefined)
+    void refreshAudioDevices().catch(() => undefined)
   }
 
   const pauseOrResume = (): void => {
@@ -275,7 +317,7 @@ export default function App(): React.JSX.Element {
     } catch {
       // Permission state below gives the actionable result.
     }
-    setPermissions(await window.recordingApi.getPermissions())
+    updatePermissionSnapshot(await window.recordingApi.getPermissions())
     await refreshAudioDevices()
   }
 
@@ -503,7 +545,7 @@ export default function App(): React.JSX.Element {
               <button
                 className="record-button"
                 type="button"
-                onClick={() => void startRecording()}
+                onClick={() => void startRecordingGateRef.current.run(startRecording)}
                 disabled={!selectedSourceId || controlsLocked}
               >
                 <span className="record-button__dot" />

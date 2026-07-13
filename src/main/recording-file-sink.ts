@@ -1,5 +1,5 @@
 import { powerSaveBlocker } from 'electron'
-import { mkdir, open, stat } from 'node:fs/promises'
+import { mkdir, open, rename, stat, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
@@ -8,6 +8,7 @@ import type { CaptureMode, RecordingExtension, RecordingSession } from '../share
 interface OpenRecording {
   handle: FileHandle
   filePath: string
+  partialPath: string
 }
 
 export class RecordingFileSink {
@@ -24,12 +25,11 @@ export class RecordingFileSink {
     mode: CaptureMode
   ): Promise<RecordingSession> {
     await mkdir(outputDirectory, { recursive: true })
-    const filePath = await this.availableFilePath(outputDirectory, extension, mode)
-    const handle = await open(filePath, 'wx')
+    const recording = await this.openAvailableRecording(outputDirectory, extension, mode)
     const id = randomUUID()
-    this.sessions.set(id, { handle, filePath })
+    this.sessions.set(id, recording)
     this.startPowerBlocker()
-    return { id, filePath }
+    return { id, filePath: recording.filePath }
   }
 
   async write(sessionId: string, data: Uint8Array): Promise<void> {
@@ -46,6 +46,7 @@ export class RecordingFileSink {
     const recording = this.requireSession(sessionId)
     await recording.handle.sync()
     await recording.handle.close()
+    await rename(recording.partialPath, recording.filePath)
     this.sessions.delete(sessionId)
     this.stopPowerBlockerIfIdle()
     return recording.filePath
@@ -55,8 +56,14 @@ export class RecordingFileSink {
     const recording = this.sessions.get(sessionId)
     if (!recording) return
     await recording.handle.close().catch(() => undefined)
-    this.sessions.delete(sessionId)
-    this.stopPowerBlockerIfIdle()
+    try {
+      await unlink(recording.partialPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    } finally {
+      this.sessions.delete(sessionId)
+      this.stopPowerBlockerIfIdle()
+    }
   }
 
   private requireSession(sessionId: string): OpenRecording {
@@ -65,11 +72,11 @@ export class RecordingFileSink {
     return recording
   }
 
-  private async availableFilePath(
+  private async openAvailableRecording(
     outputDirectory: string,
     extension: RecordingExtension,
     mode: CaptureMode
-  ): Promise<string> {
+  ): Promise<OpenRecording> {
     const now = new Date()
     const timestamp = [
       now.getFullYear(),
@@ -85,14 +92,27 @@ export class RecordingFileSink {
     for (let index = 0; index < 1_000; index += 1) {
       const suffix = index === 0 ? '' : `_${index + 1}`
       const candidate = join(outputDirectory, `${prefix}_${timestamp}${suffix}.${extension}`)
+      if (await this.pathExists(candidate)) continue
+      const partialPath = `${candidate}.partial`
       try {
-        await stat(candidate)
-      } catch {
-        return candidate
+        const handle = await open(partialPath, 'wx')
+        return { handle, filePath: candidate, partialPath }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
       }
     }
 
     throw new Error(`Could not allocate a recording file in ${basename(outputDirectory)}.`)
+  }
+
+  private async pathExists(path: string): Promise<boolean> {
+    try {
+      await stat(path)
+      return true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
+    }
   }
 
   private startPowerBlocker(): void {

@@ -1,5 +1,10 @@
 import {
   RECORDING_EXTENSIONS,
+  isCodecPreference,
+  isCountdownSeconds,
+  isQualityPresetId,
+  isRecordingFormatPreference,
+  isStorageModeId,
   type CodecPreference,
   type CountdownSeconds,
   type QualityPresetId,
@@ -54,6 +59,50 @@ export function isCaptureMode(value: unknown): value is CaptureMode {
 
 export function isRecordingExtension(value: unknown): value is RecordingExtension {
   return typeof value === 'string' && RECORDING_EXTENSIONS.includes(value as RecordingExtension)
+}
+
+function isPreferenceRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function sanitizePreferencePatch(value: unknown): Partial<AppPreferences> {
+  if (!isPreferenceRecord(value)) return {}
+  const safe: Partial<AppPreferences> = {}
+  if (isRecordingFormatPreference(value.recordingFormat)) {
+    safe.recordingFormat = value.recordingFormat
+  }
+  if (isCodecPreference(value.codecPreference)) safe.codecPreference = value.codecPreference
+  if (isStorageModeId(value.storageMode)) safe.storageMode = value.storageMode
+  if (isCountdownSeconds(value.countdownSeconds)) safe.countdownSeconds = value.countdownSeconds
+  if (isQualityPresetId(value.qualityPreset)) safe.qualityPreset = value.qualityPreset
+  if (isCaptureMode(value.captureMode)) safe.captureMode = value.captureMode
+  if (typeof value.includeSystemAudio === 'boolean') {
+    safe.includeSystemAudio = value.includeSystemAudio
+  }
+  if (typeof value.includeMicrophone === 'boolean') {
+    safe.includeMicrophone = value.includeMicrophone
+  }
+  if (typeof value.microphoneDeviceId === 'string' && value.microphoneDeviceId.length <= 512) {
+    safe.microphoneDeviceId = value.microphoneDeviceId
+  }
+  return safe
+}
+
+export function normalizeAppPreferences(
+  defaults: AppPreferences,
+  value: unknown
+): AppPreferences {
+  if (!isPreferenceRecord(value)) return defaults
+  const outputDirectory = typeof value.outputDirectory === 'string' &&
+    value.outputDirectory.trim().length > 0 &&
+    value.outputDirectory.length <= 4_096
+    ? value.outputDirectory
+    : defaults.outputDirectory
+  return {
+    ...defaults,
+    ...sanitizePreferencePatch(value),
+    outputDirectory
+  }
 }
 
 export interface PermissionSnapshot {
