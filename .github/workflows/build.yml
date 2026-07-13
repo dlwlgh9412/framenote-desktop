@@ -30,4 +30,3 @@ jobs:
         with:
           name: meeting-capture-${{ runner.os }}
           path: release/*
-

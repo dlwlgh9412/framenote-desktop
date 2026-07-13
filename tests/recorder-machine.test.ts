@@ -24,4 +24,3 @@ describe('transitionRecorder', () => {
     expect(completed.filePath).toBe('/recordings/meeting.mp4')
   })
 })
-

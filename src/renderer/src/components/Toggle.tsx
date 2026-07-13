@@ -4,7 +4,6 @@ interface ToggleProps {
   disabled?: boolean
   label: string
 }
-
 export function Toggle({ checked, onChange, disabled, label }: ToggleProps): React.JSX.Element {
   return (
     <button
@@ -20,4 +19,3 @@ export function Toggle({ checked, onChange, disabled, label }: ToggleProps): Rea
     </button>
   )
 }
-
