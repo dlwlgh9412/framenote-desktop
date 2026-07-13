@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  mergeCaptureSourceVisuals,
   selectSourceIdForTab,
   shouldRunLivePreview
 } from '../src/renderer/src/lib/source-selection'
@@ -31,5 +32,20 @@ describe('capture source selection', () => {
     expect(shouldRunLivePreview('completed', true, true, false)).toBe(false)
     expect(shouldRunLivePreview('idle', false, true, false)).toBe(false)
   })
-})
 
+  it('updates metadata without reallocating unchanged thumbnail data URLs', () => {
+    const current = [{
+      ...sources[1],
+      name: 'Old title',
+      thumbnailDataUrl: 'data:image/png;base64,stable',
+      appIconDataUrl: 'data:image/png;base64,icon'
+    }]
+    const metadata = [{ ...sources[1], name: 'New title', thumbnailDataUrl: '' }]
+
+    expect(mergeCaptureSourceVisuals(current, metadata, false)).toEqual([{
+      ...metadata[0],
+      thumbnailDataUrl: 'data:image/png;base64,stable',
+      appIconDataUrl: 'data:image/png;base64,icon'
+    }])
+  })
+})

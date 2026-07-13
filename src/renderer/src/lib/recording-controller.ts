@@ -109,7 +109,12 @@ export class RecordingController {
     const codec = chooseCodec(
       preferences.recordingFormat,
       preferences.codecPreference,
-      MediaRecorder.isTypeSupported
+      MediaRecorder.isTypeSupported,
+      {
+        preferHighQualityH264: preferences.qualityPreset === 'detailed' ||
+          preferences.qualityPreset === 'smooth' ||
+          preferences.qualityPreset === 'ultra'
+      }
     )
     const quality = getEncodingPlan(
       preferences.qualityPreset,

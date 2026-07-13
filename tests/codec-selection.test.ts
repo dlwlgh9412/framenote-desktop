@@ -12,8 +12,15 @@ describe('chooseCodec', () => {
 
     expect(chooseCodec('auto', 'auto', (mimeType) => supported.has(mimeType))).toMatchObject({
       id: 'h264',
-      extension: 'mp4'
+      extension: 'mp4',
+      mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2'
     })
+  })
+
+  it('uses a high-level H.264 profile only for high-resolution plans', () => {
+    expect(chooseCodec('mp4', 'h264', () => true, {
+      preferHighQualityH264: true
+    }).mimeType).toBe('video/mp4;codecs=avc1.640033,mp4a.40.2')
   })
 
   it('keeps file format and codec as separate constraints', () => {

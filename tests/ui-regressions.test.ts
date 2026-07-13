@@ -15,4 +15,9 @@ describe('desktop UI regressions', () => {
     expect(app).toContain('선택한 앱에서 재생되는 소리')
     expect(app).toContain('화면 미리보기 숨기기')
   })
+
+  it('scales interface icons on large desktop layouts', async () => {
+    const styles = await readFile(join(process.cwd(), 'src/renderer/src/styles.css'), 'utf8')
+    expect(styles).toMatch(/@media \(min-width: 1600px\)[\s\S]*\.workspace svg[^}]*scale\(1\.15\)/)
+  })
 })

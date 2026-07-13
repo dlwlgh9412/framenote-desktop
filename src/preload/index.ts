@@ -3,13 +3,14 @@ import {
   IPC_CHANNELS,
   type AppPreferences,
   type CreateRecordingRequest,
+  type ListSourcesRequest,
   type PrepareCaptureRequest,
   type RecordingApi
 } from '../shared/contracts'
 
 const api: RecordingApi = {
   platform: process.platform,
-  listSources: () => ipcRenderer.invoke(IPC_CHANNELS.listSources),
+  listSources: (request?: ListSourcesRequest) => ipcRenderer.invoke(IPC_CHANNELS.listSources, request),
   getPermissions: () => ipcRenderer.invoke(IPC_CHANNELS.getPermissions),
   requestMicrophonePermission: () => ipcRenderer.invoke(IPC_CHANNELS.requestMicrophonePermission),
   openPermissionSettings: (kind) => ipcRenderer.invoke(IPC_CHANNELS.openPermissionSettings, kind),

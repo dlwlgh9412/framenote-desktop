@@ -88,18 +88,28 @@ export const RECORDING_FORMAT_OPTIONS: Record<RecordingFormatPreference, Recordi
   }
 }
 
+const H264_COMPATIBILITY_MIME_TYPES = [
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4;codecs=avc1.42001E,mp4a.40.2',
+  'video/mp4',
+  'video/mp4;codecs=avc1.4D4033,mp4a.40.2',
+  'video/mp4;codecs=avc1.640033,mp4a.40.2'
+] as const
+
+const H264_HIGH_QUALITY_MIME_TYPES = [
+  'video/mp4;codecs=avc1.640033,mp4a.40.2',
+  'video/mp4;codecs=avc1.4D4033,mp4a.40.2',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4;codecs=avc1.42001E,mp4a.40.2',
+  'video/mp4'
+] as const
+
 export const CODEC_PROFILES: Record<ConcreteCodec, CodecProfile> = {
   h264: {
     id: 'h264',
     label: 'H.264 / AAC',
     detail: 'MP4용 범용 코덱',
-    mimeTypes: [
-      'video/mp4;codecs=avc1.640033,mp4a.40.2',
-      'video/mp4;codecs=avc1.4D4033,mp4a.40.2',
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-      'video/mp4;codecs=avc1.42001E,mp4a.40.2',
-      'video/mp4'
-    ],
+    mimeTypes: H264_COMPATIBILITY_MIME_TYPES,
     extension: 'mp4',
     bitrateFactor: 1
   },
@@ -224,7 +234,8 @@ export function getPreferredCodec(
 export function chooseCodec(
   format: RecordingFormatPreference,
   preference: CodecPreference,
-  isSupported: (mimeType: string) => boolean
+  isSupported: (mimeType: string) => boolean,
+  options: { preferHighQualityH264?: boolean } = {}
 ): ResolvedCodecProfile {
   const compatible = getCompatibleCodecs(format)
   if (preference !== 'auto' && !compatible.includes(preference)) {
@@ -235,7 +246,10 @@ export function chooseCodec(
   const candidates = preference === 'auto' ? compatible : [preference]
   for (const codec of candidates) {
     const profile = CODEC_PROFILES[codec]
-    const mimeType = profile.mimeTypes.find(isSupported)
+    const mimeTypes = codec === 'h264' && options.preferHighQualityH264
+      ? H264_HIGH_QUALITY_MIME_TYPES
+      : profile.mimeTypes
+    const mimeType = mimeTypes.find(isSupported)
     if (mimeType) return { ...profile, mimeType }
   }
 

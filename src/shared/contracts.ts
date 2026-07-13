@@ -139,9 +139,13 @@ export interface RecordingSession {
   filePath: string
 }
 
+export interface ListSourcesRequest {
+  includeVisuals?: boolean
+}
+
 export interface RecordingApi {
   platform: NodeJS.Platform
-  listSources: () => Promise<CaptureSource[]>
+  listSources: (request?: ListSourcesRequest) => Promise<CaptureSource[]>
   getPermissions: () => Promise<PermissionSnapshot>
   requestMicrophonePermission: () => Promise<boolean>
   openPermissionSettings: (kind: PermissionSettingsKind) => Promise<void>

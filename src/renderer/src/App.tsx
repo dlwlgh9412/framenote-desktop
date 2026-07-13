@@ -62,7 +62,11 @@ import { normalizeError, RecordingController } from './lib/recording-controller'
 import { startRecordingWithPreview } from './lib/recording-start'
 import { LivePreviewController } from './lib/live-preview'
 import { SingleFlight } from './lib/single-flight'
-import { selectSourceIdForTab, shouldRunLivePreview } from './lib/source-selection'
+import {
+  mergeCaptureSourceVisuals,
+  selectSourceIdForTab,
+  shouldRunLivePreview
+} from './lib/source-selection'
 
 const placeholderPreferences: AppPreferences = createDefaultPreferences('불러오는 중…')
 
@@ -106,6 +110,7 @@ export default function App(): React.JSX.Element {
   const stopRecordingRef = useRef<() => Promise<void>>(async () => undefined)
   const permissionsRef = useRef<PermissionSnapshot | null>(null)
   const sourceTabRef = useRef<CaptureSource['type']>('screen')
+  const automaticSourceRefreshCountRef = useRef(0)
   const nativeStateLoadedRef = useRef(false)
   const sourceRefreshGateRef = useRef(new SingleFlight())
   const focusRefreshGateRef = useRef(new SingleFlight())
@@ -140,12 +145,12 @@ export default function App(): React.JSX.Element {
     setPermissions(snapshot)
   }, [])
 
-  const refreshSources = useCallback((showLoading = true) => sourceRefreshGateRef.current.run(async () => {
+  const refreshSources = useCallback((showLoading = true, includeVisuals = true) => sourceRefreshGateRef.current.run(async () => {
     if (isActive) return
     if (showLoading) setLoadingSources(true)
     try {
-      const nextSources = await window.recordingApi.listSources()
-      setSources(nextSources)
+      const nextSources = await window.recordingApi.listSources({ includeVisuals })
+      setSources((current) => mergeCaptureSourceVisuals(current, nextSources, includeVisuals))
       setSelectedSourceId((current) => selectSourceIdForTab(
         nextSources,
         sourceTabRef.current,
@@ -223,12 +228,13 @@ export default function App(): React.JSX.Element {
     if (
       isActive ||
       !nativeStateLoaded ||
-      recorderState.status === 'completed' ||
       needsScreenPermission
     ) return
     const refresh = (): void => {
       if (document.visibilityState === 'hidden') return
-      void refreshSources(false)
+      automaticSourceRefreshCountRef.current += 1
+      const includeVisuals = automaticSourceRefreshCountRef.current % 5 === 0
+      void refreshSources(false, includeVisuals)
         .then(() => {
           if (livePreviewError && livePreviewRequested) {
             setLivePreviewRetry((value) => value + 1)
@@ -237,7 +243,7 @@ export default function App(): React.JSX.Element {
         .catch(() => undefined)
     }
     refresh()
-    const timer = window.setInterval(refresh, 1_500)
+    const timer = window.setInterval(refresh, 2_000)
     return () => window.clearInterval(timer)
   }, [
     isActive,
@@ -257,12 +263,13 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     const livePreview = livePreviewControllerRef.current!
-    if (!selectedSource || !shouldRunLivePreview(
+    const shouldPreview = shouldRunLivePreview(
       recorderState.status,
       livePreviewRequested,
-      true,
+      Boolean(selectedSource),
       needsScreenPermission
-    )) {
+    )
+    if (!shouldPreview || !selectedSource) {
       void livePreview.stop()
       return
     }
@@ -368,11 +375,15 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  const suspendPreviewSession = useCallback((): void => {
+    setLivePreviewRequested(false)
+    setRecordingPreviewHidden(false)
+  }, [])
+
   const stopRecording = useCallback(async () => {
     const controller = controllerRef.current
     if (!controller || !canStopRecorder(recorderState)) return
-    setLivePreviewRequested(false)
-    setRecordingPreviewHidden(false)
+    suspendPreviewSession()
     dispatch({ type: 'stop' })
     try {
       const filePath = await controller.stop()
@@ -382,9 +393,38 @@ export default function App(): React.JSX.Element {
     } catch (error) {
       dispatch({ type: 'failed', message: normalizeError(error).message })
     }
-  }, [recorderState.status])
+  }, [recorderState.status, suspendPreviewSession])
 
   stopRecordingRef.current = stopRecording
+
+  useEffect(() => {
+    if (
+      selectedSource?.type !== 'window' ||
+      (recorderState.status !== 'recording' && recorderState.status !== 'paused')
+    ) return
+    let cancelled = false
+    let checking = false
+    const verifyWindowStillExists = async (): Promise<void> => {
+      if (checking) return
+      checking = true
+      try {
+        const currentSources = await window.recordingApi.listSources({ includeVisuals: false })
+        if (!cancelled && !currentSources.some(({ id }) => id === selectedSource.id)) {
+          setAudioWarning('선택한 앱 창이 닫혀 현재까지의 녹화를 저장합니다.')
+          void stopRecordingRef.current()
+        }
+      } catch {
+        // A transient enumeration failure must not interrupt an otherwise healthy recording.
+      } finally {
+        checking = false
+      }
+    }
+    const timer = window.setInterval(() => void verifyWindowStillExists(), 2_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [recorderState.status, selectedSourceId])
 
   const startRecording = async (): Promise<void> => {
     if (!selectedSource) return
@@ -393,8 +433,7 @@ export default function App(): React.JSX.Element {
     }
     setElapsedSeconds(0)
     setAudioWarning('')
-    setRecordingPreviewHidden(false)
-    setLivePreviewRequested(false)
+    suspendPreviewSession()
     dispatch({ type: 'start_requested' })
 
     let controller: RecordingController | null = null
@@ -426,8 +465,7 @@ export default function App(): React.JSX.Element {
           setAudioWarning(`${error.message} 녹화를 종료하고 현재까지의 내용을 저장합니다.`)
           if (!captureStarted || systemAudioFailureHandled || !controller) return
           systemAudioFailureHandled = true
-          setLivePreviewRequested(false)
-          setRecordingPreviewHidden(false)
+          suspendPreviewSession()
           const failedController = controller
           dispatch({ type: 'stop' })
           void failedController.stop()
@@ -443,8 +481,7 @@ export default function App(): React.JSX.Element {
             })
         },
         onWriteError: (error) => {
-          setLivePreviewRequested(false)
-          setRecordingPreviewHidden(false)
+          suspendPreviewSession()
           dispatch({ type: 'failed', message: error.message })
           const failedController = controller
           void failedController?.abort()
@@ -473,8 +510,7 @@ export default function App(): React.JSX.Element {
     } catch (error) {
       setCountdownRemaining(null)
       await controller?.abort().catch(() => undefined)
-      setLivePreviewRequested(false)
-      setRecordingPreviewHidden(false)
+      suspendPreviewSession()
       if (controllerRef.current === controller) controllerRef.current = null
       dispatch({ type: 'failed', message: normalizeError(error).message })
       try {
@@ -653,7 +689,11 @@ export default function App(): React.JSX.Element {
                     className={`source-card ${selectedSourceId === source.id ? 'selected' : ''}`}
                     onClick={() => selectSource(source)}
                   >
-                    <span className="source-card__image"><img src={source.thumbnailDataUrl} alt="" /></span>
+                    <span className="source-card__image">
+                      {source.thumbnailDataUrl
+                        ? <img src={source.thumbnailDataUrl} alt="" />
+                        : <Monitor size={24} aria-hidden="true" />}
+                    </span>
                     <span className="source-card__name">
                       {source.appIconDataUrl && <img src={source.appIconDataUrl} alt="" />}
                       <span>{source.name}</span>

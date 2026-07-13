@@ -25,6 +25,7 @@ import {
   sanitizePreferencePatch,
   type AppPreferences,
   type CreateRecordingRequest,
+  type ListSourcesRequest,
   type NativeSystemAudioRequest,
   type PermissionSettingsKind,
   type PermissionSnapshot,
@@ -226,18 +227,21 @@ function supportsSystemAudio(): boolean {
 }
 
 function registerIpc(): void {
-  ipcMain.handle(IPC_CHANNELS.listSources, async () => {
+  ipcMain.handle(IPC_CHANNELS.listSources, async (_event, request?: ListSourcesRequest) => {
+    const includeVisuals = request?.includeVisuals !== false
     const sources = await desktopCapturer.getSources({
       types: ['screen', 'window'],
-      thumbnailSize: { width: 384, height: 216 },
-      fetchWindowIcons: true
+      thumbnailSize: includeVisuals ? { width: 384, height: 216 } : { width: 0, height: 0 },
+      fetchWindowIcons: includeVisuals
     })
     return sources.map((source) => ({
       id: source.id,
       name: source.name,
       type: source.id.startsWith('screen:') ? 'screen' : 'window',
-      thumbnailDataUrl: source.thumbnail.toDataURL(),
-      appIconDataUrl: source.appIcon?.isEmpty() ? undefined : source.appIcon?.toDataURL(),
+      thumbnailDataUrl: includeVisuals ? source.thumbnail.toDataURL() : '',
+      appIconDataUrl: includeVisuals && !source.appIcon?.isEmpty()
+        ? source.appIcon?.toDataURL()
+        : undefined,
       displayId: source.display_id
     }))
   })
