@@ -34,6 +34,9 @@ npm run build
 # macOS: 범용 DMG + ZIP (Intel + Apple Silicon)
 npm run package:mac
 
+# Developer ID가 없는 로컬 배포: 전체 ad-hoc 서명 범용 DMG
+npm run package:mac:adhoc
+
 # Windows: NSIS 설치 프로그램 (x64, ARM64)
 npm run package:win
 ```
@@ -71,7 +74,7 @@ Windows 10 이상을 지원합니다. 시스템 오디오에는 Electron/Chromiu
 
 - DRM 보호 영상, 회사 관리 정책, 일부 보안 앱은 화면 또는 오디오 캡처를 막을 수 있습니다.
 - MP4 MediaRecorder 지원 여부는 운영체제의 Chromium 미디어 기능에 따라 달라집니다. 미지원 장치에서는 자동으로 WebM을 사용합니다.
-- 서명하지 않았거나 ad-hoc 서명한 macOS 개발 빌드는 앱을 다시 빌드하면 권한을 다시 물을 수 있습니다. 공개 배포 빌드는 고정된 번들 ID와 Developer ID로 서명하고 공증해야 합니다.
+- 전체 ad-hoc 서명 빌드는 같은 앱 파일을 다시 실행할 때 권한이 유지되지만, 새 버전으로 교체하면 권한을 다시 물을 수 있습니다. 공개 배포 빌드는 고정된 번들 ID와 Developer ID로 서명하고 공증해야 합니다.
 
 ## 품질 확인
 

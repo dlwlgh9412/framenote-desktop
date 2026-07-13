@@ -12,7 +12,7 @@ jobs:
       matrix:
         include:
           - os: macos-14
-            command: package:mac
+            command: package:mac:adhoc
           - os: windows-2025
             command: package:win
     runs-on: ${{ matrix.os }}
