@@ -26,7 +26,7 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$project_root"
-npm run build:mac-audio
+npm run build:mac-native
 npm run build
 npx electron-builder --mac --universal --dir --config.mac.identity=null
 

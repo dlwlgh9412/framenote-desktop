@@ -105,7 +105,20 @@ button:focus-visible, select:focus-visible {
   border: 1px solid #dfe4e7; border-radius: 12px; background: #182128;
 }
 .preview img, .preview video { width: 100%; height: 100%; display: block; object-fit: contain; background: #11191f; }
+.preview__video--hidden { opacity: 0; }
 .preview__shade { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), inset 0 -70px 80px -70px rgba(0,0,0,.7); }
+.preview__privacy {
+  position: absolute; z-index: 2; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px;
+  color: #fff; background: #11191f; text-align: center;
+}
+.preview__privacy svg { color: #aeb5ff; }
+.preview__privacy strong { font-size: 16px; }
+.preview__privacy span { color: #aab2b9; font-size: 12px; }
+.preview__resume {
+  position: absolute; z-index: 3; left: 50%; bottom: 18px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.2);
+  border-radius: 9px; color: #fff; background: rgba(21,29,35,.88); font-size: 12px; font-weight: 750; cursor: pointer;
+}
 .preview__empty { width: 100%; height: 100%; display: grid; place-content: center; gap: 11px; color: #82909a; text-align: center; font-size: 12px; }
 .preview__empty svg { margin: auto; opacity: .65; }
 .countdown-overlay {
@@ -188,7 +201,7 @@ button:focus-visible, select:focus-visible {
 .audio-mode-grid button > svg:first-child { color: #8d96a0; }
 .audio-mode-grid button > span { min-width: 0; display: flex; flex-direction: column; }
 .audio-mode-grid button strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.audio-mode-grid button small { margin-top: 2px; overflow: hidden; color: #9da5ad; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.audio-mode-grid button small { margin-top: 2px; color: #9da5ad; font-size: 7px; line-height: 1.3; white-space: normal; }
 .audio-mode-grid__check { visibility: hidden; color: var(--teal); }
 .audio-mode-grid button.active { border-color: rgba(79,70,223,.45); color: var(--teal); background: var(--teal-soft); }
 .audio-mode-grid button.active > svg:first-child { color: var(--teal); }
@@ -237,7 +250,7 @@ button:focus-visible, select:focus-visible {
 .record-button:active { transform: translateY(1px); }
 .record-button:disabled { background: #c9cfd3; box-shadow: none; cursor: default; }
 .record-button__dot { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.92); border-radius: 50%; }
-.active-controls { display: grid; grid-template-columns: 1fr 1.45fr; gap: 7px; }
+.active-controls { display: grid; grid-template-columns: 1.2fr 1fr 1.35fr; gap: 7px; }
 .active-controls button { height: 48px; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 11px; font-size: 10px; font-weight: 800; cursor: pointer; }
 .secondary-control { border: 1px solid #d9dee2; background: #fff; }
 .stop-control { border: 0; color: #fff; background: #26333c; }
@@ -257,8 +270,10 @@ button:focus-visible, select:focus-visible {
 .result-banner__icon { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #4c9a7d; }
 
 .modal-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 30px; background: rgba(16,26,32,.46); backdrop-filter: blur(5px); }
-.settings-modal { width: min(620px, calc(100vw - 60px)); max-height: calc(100vh - 60px); overflow-y: auto; padding: 23px; border: 1px solid rgba(255,255,255,.5); border-radius: 17px; background: #fff; box-shadow: 0 30px 80px rgba(11,25,33,.2); }
-.settings-modal__header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+.settings-modal { width: min(700px, calc(100vw - 60px)); max-height: calc(100vh - 60px); overflow: hidden; display: flex; flex-direction: column; padding: 0; border: 1px solid rgba(255,255,255,.5); border-radius: 17px; background: #fff; box-shadow: 0 30px 80px rgba(11,25,33,.2); }
+.settings-modal__header { position: sticky; z-index: 2; top: 0; flex: none; display: flex; align-items: flex-start; justify-content: space-between; margin: 0; padding: 23px; border-bottom: 1px solid #ebeff1; background: rgba(255,255,255,.97); backdrop-filter: blur(12px); }
+.settings-modal__body { min-height: 0; overflow-y: auto; padding: 0 23px 23px; scrollbar-width: thin; scrollbar-color: #dfe4e7 transparent; }
+.settings-modal__body > .settings-section:first-child { border-top: 0; }
 .settings-modal__header h2 { margin: 0; font-size: 19px; letter-spacing: -.03em; }
 .settings-section { padding: 18px 0; border-top: 1px solid #ebeff1; }
 .settings-section--last { padding-bottom: 0; }
@@ -317,4 +332,37 @@ button:focus-visible, select:focus-visible {
   .control-group { padding: 12px 0; }
   .source-card__image { height: 60px; }
   .source-list { min-height: 92px; }
+}
+
+/* Desktop displays need readable controls without wasting the additional canvas. */
+.brand span:last-child, .permission-banner__copy small, .mode-switch small,
+.option-row__copy small, .settings-section__title span, .choice-card small,
+.storage-mode-list button small, .permission-recovery span { font-size: 11px; }
+.eyebrow, .control-label, .source-card__name, .audio-mode-grid button strong,
+.device-select-wrap select, .quality-grid button strong, .quality-summary,
+.destination-row > button:not(.more-button), .result-banner, .result-banner strong,
+.result-banner button, .path-card span, .text-button, .countdown-options button,
+.permission-recovery strong, .permission-recovery button { font-size: 12px; }
+.audio-mode-grid button small, .quality-grid button span, .result-banner small,
+.settings-note, .permission-row em { font-size: 10px; }
+.status-pill, .quiet-button, .mode-switch strong, .option-row__copy strong,
+.active-controls button, .choice-card strong, .storage-mode-list button strong,
+.permission-row span { font-size: 13px; }
+
+@media (min-width: 1600px) and (min-height: 850px) {
+  .topbar { height: 86px; padding-inline: 42px 34px; }
+  .brand__mark { width: 44px; height: 44px; }
+  .brand strong { font-size: 17px; }
+  .workspace {
+    height: calc(100vh - 86px); max-width: 1920px; grid-template-columns: minmax(0, 1fr) 420px;
+    gap: 24px; padding: 24px;
+  }
+  .capture-stage { padding: 28px; }
+  .control-panel { padding: 26px; }
+  .section-heading h1 { font-size: 24px; }
+  .source-card { flex-basis: 178px; }
+  .source-card__image { height: 88px; }
+  .source-card__name { height: 34px; }
+  .record-button, .active-controls button { height: 54px; }
+  .settings-modal { width: min(780px, calc(100vw - 80px)); }
 }

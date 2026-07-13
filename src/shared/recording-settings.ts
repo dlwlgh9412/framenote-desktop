@@ -94,6 +94,8 @@ export const CODEC_PROFILES: Record<ConcreteCodec, CodecProfile> = {
     label: 'H.264 / AAC',
     detail: 'MP4용 범용 코덱',
     mimeTypes: [
+      'video/mp4;codecs=avc1.640033,mp4a.40.2',
+      'video/mp4;codecs=avc1.4D4033,mp4a.40.2',
       'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
       'video/mp4;codecs=avc1.42001E,mp4a.40.2',
       'video/mp4'
@@ -173,7 +175,7 @@ export const QUALITY_PRESETS: Record<QualityPresetId, QualityPreset> = {
     width: 2560,
     height: 1440,
     frameRate: 30,
-    videoBitsPerSecond: 10_000_000,
+    videoBitsPerSecond: 16_000_000,
     audioBitsPerSecond: 192_000
   },
   smooth: {
@@ -193,7 +195,7 @@ export const QUALITY_PRESETS: Record<QualityPresetId, QualityPreset> = {
     width: 3840,
     height: 2160,
     frameRate: 30,
-    videoBitsPerSecond: 18_000_000,
+    videoBitsPerSecond: 32_000_000,
     audioBitsPerSecond: 192_000
   }
 }

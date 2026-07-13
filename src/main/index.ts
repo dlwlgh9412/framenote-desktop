@@ -9,7 +9,7 @@ import {
   systemPreferences
 } from 'electron'
 import { join } from 'node:path'
-import { mkdir } from 'node:fs/promises'
+import { access, mkdir } from 'node:fs/promises'
 import { release } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -31,9 +31,11 @@ import {
   type PrepareCaptureRequest
 } from '../shared/contracts'
 import { requiresApplicationsInstall } from './macos-installation'
+import { loadMacosCursorPolicy, resolveMacosCursorPolicyPath } from './macos-cursor-policy'
 import { NativeSystemAudioManager } from './native-system-audio-manager'
 import { PreferenceStore } from './preference-store'
 import { RecordingFileSink } from './recording-file-sink'
+import { resolveRecordingRevealTarget } from './recording-reveal'
 
 app.setName(APP_NAME)
 
@@ -47,6 +49,19 @@ const fileSink = new RecordingFileSink()
 const nativeSystemAudio = new NativeSystemAudioManager()
 const execFileAsync = promisify(execFile)
 const OPEN_SCREEN_PERMISSION_SETTINGS_ARG = '--open-screen-permission-settings'
+
+if (process.platform === 'darwin') {
+  const cursorPolicyPath = resolveMacosCursorPolicyPath(
+    app.isPackaged,
+    app.getAppPath(),
+    process.resourcesPath
+  )
+  try {
+    loadMacosCursorPolicy(process.platform, cursorPolicyPath, (path) => require(path))
+  } catch (error) {
+    console.error('macOS window cursor policy could not be loaded.', error)
+  }
+}
 
 function screenPermissionSettingsUrl(): string {
   return 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture'
@@ -355,7 +370,17 @@ function registerIpc(): void {
   )
   ipcMain.handle(IPC_CHANNELS.finishRecording, (_event, sessionId: string) => fileSink.finish(sessionId))
   ipcMain.handle(IPC_CHANNELS.abortRecording, (_event, sessionId: string) => fileSink.abort(sessionId))
-  ipcMain.handle(IPC_CHANNELS.revealRecording, (_event, filePath: string) => shell.showItemInFolder(filePath))
+  ipcMain.handle(IPC_CHANNELS.revealRecording, async (_event, filePath: string) => {
+    const fileExists = await access(filePath).then(() => true).catch(() => false)
+    const target = resolveRecordingRevealTarget(filePath, fileExists)
+    if (target.selectFile) {
+      shell.showItemInFolder(target.path)
+      return
+    }
+    await mkdir(target.path, { recursive: true })
+    const error = await shell.openPath(target.path)
+    if (error) throw new Error(error)
+  })
   ipcMain.on(IPC_CHANNELS.readyToQuit, (event) => {
     if (event.sender.id !== mainWindow?.webContents.id) return
     allowWindowClose = true

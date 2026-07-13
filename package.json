@@ -1,6 +1,6 @@
 {
   "name": "minute-frame",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A meeting-first screen and audio recorder for macOS and Windows.",
   "main": "out/main/index.js",
   "author": "MinuteFrame contributors",
@@ -14,6 +14,7 @@
     "build": "npm run typecheck && npm run test && electron-vite build",
     "package": "npm run build && electron-builder",
     "build:mac-audio": "./scripts/build-macos-audio-helper.sh",
+    "build:mac-native": "bash ./scripts/build-macos-native.sh",
     "build:win-audio": "scripts\\build-windows-audio-helper.cmd",
     "package:mac": "./scripts/package-macos-release.sh",
     "package:mac:adhoc": "./scripts/package-macos-adhoc.sh",
@@ -54,6 +55,10 @@
         {
           "from": "build/native/macos/minuteframe-audio-capture",
           "to": "bin/minuteframe-audio-capture"
+        },
+        {
+          "from": "build/native/macos/minuteframe-cursor-policy.node",
+          "to": "bin/minuteframe-cursor-policy.node"
         }
       ],
       "target": [

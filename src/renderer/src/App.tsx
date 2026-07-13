@@ -3,6 +3,8 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
+  Eye,
+  EyeOff,
   FolderOpen,
   Gauge,
   LayoutGrid,
@@ -60,6 +62,7 @@ import { normalizeError, RecordingController } from './lib/recording-controller'
 import { startRecordingWithPreview } from './lib/recording-start'
 import { LivePreviewController } from './lib/live-preview'
 import { SingleFlight } from './lib/single-flight'
+import { selectSourceIdForTab, shouldRunLivePreview } from './lib/source-selection'
 
 const placeholderPreferences: AppPreferences = createDefaultPreferences('불러오는 중…')
 
@@ -87,17 +90,22 @@ export default function App(): React.JSX.Element {
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [loadingSources, setLoadingSources] = useState(true)
+  const [nativeStateLoaded, setNativeStateLoaded] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [countdownRemaining, setCountdownRemaining] = useState<number | null>(null)
   const [activeCodec, setActiveCodec] = useState('')
   const [audioWarning, setAudioWarning] = useState('')
   const [livePreviewStream, setLivePreviewStream] = useState<MediaStream | null>(null)
   const [livePreviewError, setLivePreviewError] = useState('')
+  const [livePreviewRequested, setLivePreviewRequested] = useState(true)
+  const [livePreviewRetry, setLivePreviewRetry] = useState(0)
+  const [recordingPreviewHidden, setRecordingPreviewHidden] = useState(false)
   const [recorderState, dispatch] = useReducer(transitionRecorder, initialRecorderState)
   const controllerRef = useRef<RecordingController | null>(null)
   const previewRef = useRef<HTMLVideoElement>(null)
   const stopRecordingRef = useRef<() => Promise<void>>(async () => undefined)
   const permissionsRef = useRef<PermissionSnapshot | null>(null)
+  const sourceTabRef = useRef<CaptureSource['type']>('screen')
   const nativeStateLoadedRef = useRef(false)
   const sourceRefreshGateRef = useRef(new SingleFlight())
   const focusRefreshGateRef = useRef(new SingleFlight())
@@ -132,18 +140,19 @@ export default function App(): React.JSX.Element {
     setPermissions(snapshot)
   }, [])
 
-  const refreshSources = useCallback(() => sourceRefreshGateRef.current.run(async () => {
+  const refreshSources = useCallback((showLoading = true) => sourceRefreshGateRef.current.run(async () => {
     if (isActive) return
-    setLoadingSources(true)
+    if (showLoading) setLoadingSources(true)
     try {
       const nextSources = await window.recordingApi.listSources()
       setSources(nextSources)
-      setSelectedSourceId((current) => {
-        if (nextSources.some(({ id }) => id === current)) return current
-        return nextSources.find(({ type }) => type === 'screen')?.id ?? nextSources[0]?.id ?? ''
-      })
+      setSelectedSourceId((current) => selectSourceIdForTab(
+        nextSources,
+        sourceTabRef.current,
+        current
+      ))
     } finally {
-      setLoadingSources(false)
+      if (showLoading) setLoadingSources(false)
     }
   }), [isActive])
 
@@ -172,6 +181,7 @@ export default function App(): React.JSX.Element {
         setLoadingSources(false)
       } finally {
         nativeStateLoadedRef.current = true
+        setNativeStateLoaded(true)
       }
     })()
   }, []) // Initial native state only.
@@ -210,6 +220,36 @@ export default function App(): React.JSX.Element {
   }, [refreshAudioDevices])
 
   useEffect(() => {
+    if (
+      isActive ||
+      !nativeStateLoaded ||
+      recorderState.status === 'completed' ||
+      needsScreenPermission
+    ) return
+    const refresh = (): void => {
+      if (document.visibilityState === 'hidden') return
+      void refreshSources(false)
+        .then(() => {
+          if (livePreviewError && livePreviewRequested) {
+            setLivePreviewRetry((value) => value + 1)
+          }
+        })
+        .catch(() => undefined)
+    }
+    refresh()
+    const timer = window.setInterval(refresh, 1_500)
+    return () => window.clearInterval(timer)
+  }, [
+    isActive,
+    livePreviewError,
+    livePreviewRequested,
+    nativeStateLoaded,
+    needsScreenPermission,
+    recorderState.status,
+    refreshSources
+  ])
+
+  useEffect(() => {
     if (recorderState.status !== 'recording') return
     const timer = window.setInterval(() => setElapsedSeconds((value) => value + 1), 1_000)
     return () => window.clearInterval(timer)
@@ -217,7 +257,12 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     const livePreview = livePreviewControllerRef.current!
-    if (isActive || !selectedSource || needsScreenPermission) {
+    if (!selectedSource || !shouldRunLivePreview(
+      recorderState.status,
+      livePreviewRequested,
+      true,
+      needsScreenPermission
+    )) {
       void livePreview.stop()
       return
     }
@@ -229,7 +274,7 @@ export default function App(): React.JSX.Element {
     return () => {
       void livePreview.stop()
     }
-  }, [isActive, needsScreenPermission, selectedSourceId])
+  }, [livePreviewRequested, livePreviewRetry, needsScreenPermission, recorderState.status, selectedSourceId])
 
   useEffect(() => {
     if (isActive || !livePreviewStream || !previewRef.current) return
@@ -295,7 +340,12 @@ export default function App(): React.JSX.Element {
   }
 
   const selectSource = (source: CaptureSource): void => {
+    if (recorderState.status === 'completed' || recorderState.status === 'error') {
+      dispatch({ type: 'reset' })
+    }
     setSelectedSourceId(source.id)
+    setLivePreviewRequested(true)
+    setRecordingPreviewHidden(false)
     if (source.type === 'window' &&
       permissions?.selectedApplicationAudioSupported === false &&
       preferences.includeSystemAudio) {
@@ -306,9 +356,23 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  const changeSourceTab = (tab: CaptureSource['type']): void => {
+    sourceTabRef.current = tab
+    setSourceTab(tab)
+    const nextId = selectSourceIdForTab(sources, tab, '')
+    const nextSource = sources.find(({ id }) => id === nextId)
+    if (nextSource) selectSource(nextSource)
+    else {
+      setSelectedSourceId('')
+      setLivePreviewRequested(false)
+    }
+  }
+
   const stopRecording = useCallback(async () => {
     const controller = controllerRef.current
     if (!controller || !canStopRecorder(recorderState)) return
+    setLivePreviewRequested(false)
+    setRecordingPreviewHidden(false)
     dispatch({ type: 'stop' })
     try {
       const filePath = await controller.stop()
@@ -329,6 +393,8 @@ export default function App(): React.JSX.Element {
     }
     setElapsedSeconds(0)
     setAudioWarning('')
+    setRecordingPreviewHidden(false)
+    setLivePreviewRequested(false)
     dispatch({ type: 'start_requested' })
 
     let controller: RecordingController | null = null
@@ -360,6 +426,8 @@ export default function App(): React.JSX.Element {
           setAudioWarning(`${error.message} 녹화를 종료하고 현재까지의 내용을 저장합니다.`)
           if (!captureStarted || systemAudioFailureHandled || !controller) return
           systemAudioFailureHandled = true
+          setLivePreviewRequested(false)
+          setRecordingPreviewHidden(false)
           const failedController = controller
           dispatch({ type: 'stop' })
           void failedController.stop()
@@ -375,6 +443,8 @@ export default function App(): React.JSX.Element {
             })
         },
         onWriteError: (error) => {
+          setLivePreviewRequested(false)
+          setRecordingPreviewHidden(false)
           dispatch({ type: 'failed', message: error.message })
           const failedController = controller
           void failedController?.abort()
@@ -403,6 +473,8 @@ export default function App(): React.JSX.Element {
     } catch (error) {
       setCountdownRemaining(null)
       await controller?.abort().catch(() => undefined)
+      setLivePreviewRequested(false)
+      setRecordingPreviewHidden(false)
       if (controllerRef.current === controller) controllerRef.current = null
       dispatch({ type: 'failed', message: normalizeError(error).message })
       try {
@@ -487,13 +559,26 @@ export default function App(): React.JSX.Element {
 
           <div className={`preview ${isActive || livePreviewStream ? 'preview--live' : ''}`}>
             {isActive || livePreviewStream ? (
-              <video ref={previewRef} muted playsInline autoPlay />
+              <video
+                ref={previewRef}
+                className={isActive && recordingPreviewHidden ? 'preview__video--hidden' : ''}
+                muted
+                playsInline
+                autoPlay
+              />
             ) : selectedSource ? (
               <img src={selectedSource.thumbnailDataUrl} alt={`${selectedSource.name} 미리보기`} />
             ) : (
               <div className="preview__empty"><MonitorUp size={32} /><span>사용 가능한 화면을 찾고 있습니다.</span></div>
             )}
             <div className="preview__shade" />
+            {isActive && recordingPreviewHidden && (
+              <div className="preview__privacy">
+                <EyeOff size={30} />
+                <strong>화면 미리보기를 숨겼습니다</strong>
+                <span>영상과 사운드는 계속 정상적으로 저장됩니다.</span>
+              </div>
+            )}
             {countdownRemaining !== null && (
               <div className="countdown-overlay" aria-live="assertive">
                 <span>곧 녹화를 시작합니다</span>
@@ -509,7 +594,21 @@ export default function App(): React.JSX.Element {
                   : selectedSource ? sourceType(selectedSource) : '대기 중'}
             </div>
             {!isActive && livePreviewError && (
-              <div className="preview__notice">실시간 미리보기를 열지 못했습니다 · {livePreviewError}</div>
+              <div className="preview__notice">미리보기를 다시 연결하는 중입니다 · 자동으로 재시도합니다.</div>
+            )}
+            {!isActive && selectedSource && !livePreviewRequested && (
+              <button
+                className="preview__resume"
+                type="button"
+                onClick={() => {
+                  if (recorderState.status === 'completed' || recorderState.status === 'error') {
+                    dispatch({ type: 'reset' })
+                  }
+                  setLivePreviewRequested(true)
+                }}
+              >
+                <Eye size={17} /> 실시간 미리보기 켜기
+              </button>
             )}
             {isActive && (
               <div className="preview__timer">
@@ -539,10 +638,10 @@ export default function App(): React.JSX.Element {
                 </div>
               )}
               <div className="source-tabs" role="tablist" aria-label="캡처 소스 종류">
-                <button className={sourceTab === 'screen' ? 'active' : ''} type="button" onClick={() => setSourceTab('screen')}>
+                <button className={sourceTab === 'screen' ? 'active' : ''} type="button" onClick={() => changeSourceTab('screen')}>
                   <Monitor size={16} /> 전체 화면
                 </button>
-                <button className={sourceTab === 'window' ? 'active' : ''} type="button" onClick={() => setSourceTab('window')}>
+                <button className={sourceTab === 'window' ? 'active' : ''} type="button" onClick={() => changeSourceTab('window')}>
                   <LayoutGrid size={16} /> 앱 창
                 </button>
               </div>
@@ -574,10 +673,10 @@ export default function App(): React.JSX.Element {
           <div className="control-panel__intro">
             <p className="eyebrow">녹화 방식</p>
             <div className="mode-switch">
-              <button type="button" className={preferences.captureMode === 'meeting' ? 'active' : ''} onClick={() => changeMode('meeting')} disabled={isActive}>
+              <button type="button" className={preferences.captureMode === 'meeting' ? 'active' : ''} onClick={() => changeMode('meeting')} disabled={!nativeStateLoaded || isActive}>
                 <Sparkles size={17} /><span><strong>회의</strong><small>화면 + 양쪽 음성</small></span>
               </button>
-              <button type="button" className={preferences.captureMode === 'screen' ? 'active' : ''} onClick={() => changeMode('screen')} disabled={isActive}>
+              <button type="button" className={preferences.captureMode === 'screen' ? 'active' : ''} onClick={() => changeMode('screen')} disabled={!nativeStateLoaded || isActive}>
                 <Monitor size={17} /><span><strong>화면</strong><small>화면 중심 녹화</small></span>
               </button>
             </div>
@@ -588,7 +687,13 @@ export default function App(): React.JSX.Element {
             <div className="audio-mode-grid" role="radiogroup" aria-label="녹음할 소리">
               {([
                 ['all', '전체 소리', '앱/시스템 + 마이크'],
-                ['system', selectedSource?.type === 'window' ? '선택 앱 소리' : '시스템 소리', 'Meet, Zoom과 재생 소리'],
+                [
+                  'system',
+                  selectedSource?.type === 'window' ? '선택 앱 소리' : '시스템 소리',
+                  selectedSource?.type === 'window'
+                    ? '선택한 앱에서 재생되는 소리'
+                    : '현재 기기에서 재생되는 모든 소리'
+                ],
                 ['microphone', '마이크만', '내 목소리만'],
                 ['none', '소리 없음', '영상만 녹화']
               ] as const).map(([mode, label, detail]) => (
@@ -599,6 +704,7 @@ export default function App(): React.JSX.Element {
                   aria-checked={audioMode === mode}
                   className={audioMode === mode ? 'active' : ''}
                   disabled={
+                    !nativeStateLoaded ||
                     isActive ||
                     ((mode === 'all' || mode === 'system') &&
                       (permissions?.systemAudioSupported === false || selectedApplicationAudioUnavailable))
@@ -619,7 +725,7 @@ export default function App(): React.JSX.Element {
                   <select
                     aria-label="마이크 선택"
                     value={preferences.microphoneDeviceId}
-                    disabled={isActive}
+                    disabled={!nativeStateLoaded || isActive}
                     onChange={(event) => void updatePreferences({ microphoneDeviceId: event.target.value })}
                   >
                     <option value="">시스템 기본 마이크</option>
@@ -654,7 +760,7 @@ export default function App(): React.JSX.Element {
                   key={id}
                   type="button"
                   className={preferences.qualityPreset === id ? 'active' : ''}
-                  disabled={isActive}
+                  disabled={!nativeStateLoaded || isActive}
                   onClick={() => void updatePreferences({ qualityPreset: id })}
                 >
                   <strong>{QUALITY_PRESETS[id].label}</strong>
@@ -672,6 +778,16 @@ export default function App(): React.JSX.Element {
           <div className="record-area">
             {recorderState.status === 'recording' || recorderState.status === 'paused' ? (
               <div className="active-controls">
+                <button
+                  className="secondary-control preview-visibility-control"
+                  type="button"
+                  onClick={() => setRecordingPreviewHidden((hidden) => !hidden)}
+                  aria-pressed={recordingPreviewHidden}
+                  aria-label={recordingPreviewHidden ? '화면 미리보기 보기' : '화면 미리보기 숨기기'}
+                >
+                  {recordingPreviewHidden ? <Eye size={19} /> : <EyeOff size={19} />}
+                  <span>{recordingPreviewHidden ? '미리보기 보기' : '미리보기 숨기기'}</span>
+                </button>
                 <button className="secondary-control" type="button" onClick={pauseOrResume}>
                   {recorderState.status === 'paused' ? <Play size={20} fill="currentColor" /> : <Pause size={20} fill="currentColor" />}
                   <span>{recorderState.status === 'paused' ? '계속' : '일시정지'}</span>
@@ -686,7 +802,7 @@ export default function App(): React.JSX.Element {
                 className="record-button"
                 type="button"
                 onClick={() => void startRecordingGateRef.current.run(startRecording)}
-                disabled={!selectedSourceId || controlsLocked || needsScreenPermission}
+                disabled={!nativeStateLoaded || !selectedSourceId || controlsLocked || needsScreenPermission}
               >
                 <span className="record-button__dot" />
                 <span>{recorderState.status === 'preparing' ? '준비 중…' : recorderState.status === 'finalizing' ? '저장 중…' : '녹화 시작'}</span>

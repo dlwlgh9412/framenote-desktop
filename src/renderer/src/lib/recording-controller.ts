@@ -5,6 +5,7 @@ import type {
   RecordingSession
 } from '../../../shared/contracts'
 import { getSystemAudioBackend, type SystemAudioBackend } from '../../../shared/audio-capture'
+import { getCaptureVideoConstraints } from '../../../shared/capture-constraints'
 import {
   chooseCodec,
   getEncodingPlan,
@@ -141,11 +142,12 @@ export class RecordingController {
 
     try {
       this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: quality.width },
-          height: { ideal: quality.height },
-          frameRate: { ideal: quality.frameRate, max: quality.frameRate }
-        },
+        video: getCaptureVideoConstraints(
+          source.type,
+          quality.width,
+          quality.height,
+          quality.frameRate
+        ),
         audio: systemAudioBackend === 'electron-loopback'
       })
 

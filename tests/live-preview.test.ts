@@ -34,6 +34,9 @@ describe('LivePreviewController', () => {
       includeSystemAudio: false
     })
     expect(getDisplayMedia).toHaveBeenCalledWith(expect.objectContaining({ audio: false }))
+    expect(getDisplayMedia).toHaveBeenCalledWith(expect.objectContaining({
+      video: expect.objectContaining({ cursor: 'never' })
+    }))
     expect(onStream).toHaveBeenLastCalledWith(preview)
 
     await controller.stop()

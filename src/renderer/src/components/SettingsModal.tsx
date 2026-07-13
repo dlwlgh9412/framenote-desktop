@@ -93,23 +93,24 @@ export function SettingsModal({
           </button>
         </header>
 
-        <div className="settings-section">
-          <div className="settings-section__title">
-            <HardDrive size={18} />
-            <div>
-              <strong>저장 위치</strong>
-              <span>녹화가 끝나면 이 폴더에 바로 저장됩니다.</span>
+        <div className="settings-modal__body">
+          <div className="settings-section">
+            <div className="settings-section__title">
+              <HardDrive size={18} />
+              <div>
+                <strong>저장 위치</strong>
+                <span>녹화가 끝나면 이 폴더에 바로 저장됩니다.</span>
+              </div>
             </div>
+            <button className="path-card" type="button" onClick={onChooseDirectory}>
+              <FolderOpen size={18} />
+              <span title={preferences.outputDirectory}>{preferences.outputDirectory}</span>
+              <ChevronRight size={18} />
+            </button>
+            <button className="text-button" type="button" onClick={onOpenDirectory}>
+              현재 폴더 열기
+            </button>
           </div>
-          <button className="path-card" type="button" onClick={onChooseDirectory}>
-            <FolderOpen size={18} />
-            <span title={preferences.outputDirectory}>{preferences.outputDirectory}</span>
-            <ChevronRight size={18} />
-          </button>
-          <button className="text-button" type="button" onClick={onOpenDirectory}>
-            현재 폴더 열기
-          </button>
-        </div>
 
         <div className="settings-section">
           <div className="settings-section__title">
@@ -240,50 +241,51 @@ export function SettingsModal({
           </div>
         </div>
 
-        {permissions?.platform === 'darwin' && (
-          <div className="settings-section settings-section--last">
-            <div className="settings-section__title">
-              <MonitorUp size={18} />
-              <div>
-                <strong>macOS 권한</strong>
-                <span>설정에서 변경하면 앱으로 돌아올 때 상태를 다시 확인합니다.</span>
+          {permissions?.platform === 'darwin' && (
+            <div className="settings-section settings-section--last">
+              <div className="settings-section__title">
+                <MonitorUp size={18} />
+                <div>
+                  <strong>macOS 권한</strong>
+                  <span>설정에서 변경하면 앱으로 돌아올 때 상태를 다시 확인합니다.</span>
+                </div>
               </div>
-            </div>
-            <button className="permission-row" type="button" onClick={() => onOpenPermission('screen')}>
-              <MonitorUp size={17} />
-              <span>화면 기록</span>
-              <em className={permissions.screen === 'granted' ? 'granted' : ''}>
-                {permissionLabel(permissions.screen)}
-              </em>
-              <ChevronRight size={16} />
-            </button>
-            <button className="permission-row" type="button" onClick={() => onOpenPermission('microphone')}>
-              <Mic2 size={17} />
-              <span>마이크</span>
-              <em className={permissions.microphone === 'granted' ? 'granted' : ''}>
-                {permissionLabel(permissions.microphone)}
-              </em>
-              <ChevronRight size={16} />
-            </button>
-            <button className="permission-row" type="button" onClick={() => onOpenPermission('systemAudio')}>
-              <Volume2 size={17} />
-              <span>시스템 오디오</span>
-              <em>{permissions.systemAudio === 'unknown' ? '녹화 시 확인' : permissionLabel(permissions.systemAudio)}</em>
-              <ChevronRight size={16} />
-            </button>
-            <div className="permission-recovery">
-              <div>
-                <strong>허용했는데도 작동하지 않나요?</strong>
-                <span>{recordingActive
-                  ? '녹화를 끝낸 뒤 권한 연결을 초기화할 수 있습니다.'
-                  : '업데이트 전 권한 항목을 지우고 현재 앱을 다시 등록합니다.'}</span>
-              </div>
-              <button type="button" onClick={onResetScreenPermission} disabled={recordingActive}>
-                <RotateCcw size={15} /> 권한 연결 초기화
+              <button className="permission-row" type="button" onClick={() => onOpenPermission('screen')}>
+                <MonitorUp size={17} />
+                <span>화면 기록</span>
+                <em className={permissions.screen === 'granted' ? 'granted' : ''}>
+                  {permissionLabel(permissions.screen)}
+                </em>
+                <ChevronRight size={16} />
               </button>
+              <button className="permission-row" type="button" onClick={() => onOpenPermission('microphone')}>
+                <Mic2 size={17} />
+                <span>마이크</span>
+                <em className={permissions.microphone === 'granted' ? 'granted' : ''}>
+                  {permissionLabel(permissions.microphone)}
+                </em>
+                <ChevronRight size={16} />
+              </button>
+              <button className="permission-row" type="button" onClick={() => onOpenPermission('systemAudio')}>
+                <Volume2 size={17} />
+                <span>시스템 오디오</span>
+                <em>{permissions.systemAudio === 'unknown' ? '녹화 시 확인' : permissionLabel(permissions.systemAudio)}</em>
+                <ChevronRight size={16} />
+              </button>
+              <div className="permission-recovery">
+                <div>
+                  <strong>허용했는데도 작동하지 않나요?</strong>
+                  <span>{recordingActive
+                    ? '녹화를 끝낸 뒤 권한 연결을 초기화할 수 있습니다.'
+                    : '업데이트 전 권한 항목을 지우고 현재 앱을 다시 등록합니다.'}</span>
+                </div>
+                <button type="button" onClick={onResetScreenPermission} disabled={recordingActive}>
+                  <RotateCcw size={15} /> 권한 연결 초기화
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </section>
     </div>
   )

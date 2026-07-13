@@ -31,7 +31,7 @@ describe('getQualityPreset', () => {
       width: 2560,
       height: 1440,
       frameRate: 30,
-      videoBitsPerSecond: 10_000_000
+      videoBitsPerSecond: 16_000_000
     })
     expect(getQualityPreset('smooth')).toMatchObject({
       width: 1920,
@@ -46,7 +46,7 @@ describe('getQualityPreset', () => {
       width: 3840,
       height: 2160,
       frameRate: 30,
-      videoBitsPerSecond: 18_000_000
+      videoBitsPerSecond: 32_000_000
     })
   })
 
@@ -54,10 +54,10 @@ describe('getQualityPreset', () => {
     const compact4k = getEncodingPlan('ultra', 'compact', 'vp9')
     const balanced4k = getEncodingPlan('ultra', 'balanced', 'h264')
 
-    expect(compact4k.videoBitsPerSecond).toBe(9_100_000)
+    expect(compact4k.videoBitsPerSecond).toBe(16_100_000)
     expect(compact4k.audioBitsPerSecond).toBe(128_000)
     expect(compact4k.estimatedMegabytesPerHour).toBe(
-      estimateMegabytesPerHour(9_100_000, 128_000)
+      estimateMegabytesPerHour(16_100_000, 128_000)
     )
     expect(compact4k.estimatedMegabytesPerHour).toBeLessThan(
       balanced4k.estimatedMegabytesPerHour
@@ -74,6 +74,6 @@ describe('getQualityPreset', () => {
 
     expect(preview.codec).toBe('vp9')
     expect(preview.supported).toBe(true)
-    expect(preview.plan.videoBitsPerSecond).toBe(9_100_000)
+    expect(preview.plan.videoBitsPerSecond).toBe(16_100_000)
   })
 })

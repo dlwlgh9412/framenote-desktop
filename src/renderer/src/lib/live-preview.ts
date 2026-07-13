@@ -1,4 +1,5 @@
 import type { CaptureSource, PrepareCaptureRequest } from '../../../shared/contracts'
+import { getCaptureVideoConstraints } from '../../../shared/capture-constraints'
 
 interface LivePreviewDependencies {
   prepareCapture: (request: PrepareCaptureRequest) => Promise<void>
@@ -26,11 +27,7 @@ export class LivePreviewController {
         includeSystemAudio: false
       })
       const stream = await this.dependencies.getDisplayMedia({
-        video: {
-          width: { ideal: 1_280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30, max: 30 }
-        },
+        video: getCaptureVideoConstraints(source.type, 1_280, 720, 30),
         audio: false
       })
 
