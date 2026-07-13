@@ -231,12 +231,15 @@ button:focus-visible, select:focus-visible {
 .inline-warning { margin: 9px 0 0 41px; color: #a66725; font-size: 9px; line-height: 1.5; }
 
 .quality-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
-.quality-grid button { min-width: 0; padding: 8px 3px; border: 1px solid #e2e6e9; border-radius: 8px; background: #fff; cursor: pointer; }
+.quality-grid button { container-type: inline-size; min-width: 0; overflow: hidden; padding: 8px 3px; border: 1px solid #e2e6e9; border-radius: 8px; background: #fff; cursor: pointer; }
 .quality-grid button strong, .quality-grid button span { display: block; }
 .quality-grid button strong { font-size: 9px; }
 .quality-grid button span { margin-top: 3px; color: #9aa2aa; font-size: 6.5px; white-space: nowrap; }
 .quality-grid button.active { border-color: var(--teal); color: var(--teal); background: var(--teal-soft); }
 .quality-grid button:disabled { cursor: default; }
+@container (max-width: 72px) {
+  .quality-grid button span { display: none; }
+}
 .quality-summary { display: flex; align-items: center; gap: 6px; margin-top: 9px; color: #8a949d; font-size: 8px; }
 .quality-summary svg { color: var(--teal); }
 .quality-summary em { margin-left: auto; color: #a0a8af; font-style: normal; }

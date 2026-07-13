@@ -20,4 +20,13 @@ describe('desktop UI regressions', () => {
     const styles = await readFile(join(process.cwd(), 'src/renderer/src/styles.css'), 'utf8')
     expect(styles).toMatch(/@media \(min-width: 1600px\)[\s\S]*\.workspace svg[^}]*scale\(1\.15\)/)
   })
+
+  it('hides quality metadata when an individual card is too narrow', async () => {
+    const styles = await readFile(join(process.cwd(), 'src/renderer/src/styles.css'), 'utf8')
+    expect(styles).toMatch(/\.quality-grid button\s*\{[^}]*container-type:\s*inline-size/s)
+    expect(styles).toMatch(/\.quality-grid button\s*\{[^}]*overflow:\s*hidden/s)
+    expect(styles).toMatch(
+      /@container[^\{]*\(max-width:\s*72px\)[\s\S]*\.quality-grid button span\s*\{[^}]*display:\s*none/s
+    )
+  })
 })
