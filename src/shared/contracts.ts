@@ -17,6 +17,12 @@ import {
 
 export const CAPTURE_MODES = ['meeting', 'screen'] as const
 export type CaptureMode = (typeof CAPTURE_MODES)[number]
+export const RECORDING_ARTIFACT_KINDS = ['video', 'audio'] as const
+export type RecordingArtifactKind = (typeof RECORDING_ARTIFACT_KINDS)[number]
+export const RECORDING_FILE_EXTENSIONS = ['mp4', 'webm', 'm4a'] as const
+export type RecordingFileExtension = (typeof RECORDING_FILE_EXTENSIONS)[number]
+export const AUDIO_RECORDING_EXTENSIONS = ['m4a', 'webm'] as const
+export type AudioRecordingExtension = (typeof AUDIO_RECORDING_EXTENSIONS)[number]
 
 export interface CaptureSource {
   id: string
@@ -38,6 +44,7 @@ export interface AppPreferences {
   captureMode: CaptureMode
   includeSystemAudio: boolean
   includeMicrophone: boolean
+  saveAudioFile: boolean
   microphoneDeviceId: string
 }
 
@@ -53,6 +60,7 @@ export function createDefaultPreferences(outputDirectory: string): AppPreference
     captureMode: 'meeting',
     includeSystemAudio: true,
     includeMicrophone: true,
+    saveAudioFile: false,
     microphoneDeviceId: ''
   }
 }
@@ -63,6 +71,21 @@ export function isCaptureMode(value: unknown): value is CaptureMode {
 
 export function isRecordingExtension(value: unknown): value is RecordingExtension {
   return typeof value === 'string' && RECORDING_EXTENSIONS.includes(value as RecordingExtension)
+}
+
+export function isRecordingFileExtension(value: unknown): value is RecordingFileExtension {
+  return typeof value === 'string' &&
+    RECORDING_FILE_EXTENSIONS.includes(value as RecordingFileExtension)
+}
+
+export function isRecordingArtifactKind(value: unknown): value is RecordingArtifactKind {
+  return typeof value === 'string' &&
+    RECORDING_ARTIFACT_KINDS.includes(value as RecordingArtifactKind)
+}
+
+export function isAudioRecordingExtension(value: unknown): value is AudioRecordingExtension {
+  return typeof value === 'string' &&
+    AUDIO_RECORDING_EXTENSIONS.includes(value as AudioRecordingExtension)
 }
 
 function isPreferenceRecord(value: unknown): value is Record<string, unknown> {
@@ -87,6 +110,7 @@ export function sanitizePreferencePatch(value: unknown): Partial<AppPreferences>
   if (typeof value.includeMicrophone === 'boolean') {
     safe.includeMicrophone = value.includeMicrophone
   }
+  if (typeof value.saveAudioFile === 'boolean') safe.saveAudioFile = value.saveAudioFile
   if (typeof value.microphoneDeviceId === 'string' && value.microphoneDeviceId.length <= 512) {
     safe.microphoneDeviceId = value.microphoneDeviceId
   }
@@ -134,10 +158,17 @@ export interface NativeSystemAudioRequest {
   displayId: string
 }
 
-export interface CreateRecordingRequest {
-  extension: RecordingExtension
-  mode: CaptureMode
-}
+export type CreateRecordingRequest =
+  | {
+      extension: RecordingExtension
+      mode: CaptureMode
+      artifact: 'video'
+    }
+  | {
+      extension: AudioRecordingExtension
+      mode: CaptureMode
+      artifact: 'audio'
+    }
 
 export interface RecordingSession {
   id: string

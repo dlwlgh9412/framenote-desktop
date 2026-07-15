@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  FileAudio2,
   FolderOpen,
   Gauge,
   LayoutGrid,
@@ -402,10 +403,10 @@ export default function App(): React.JSX.Element {
     suspendPreviewSession()
     dispatch({ type: 'stop' })
     try {
-      const filePath = await controller.stop()
+      const result = await controller.stop()
       controllerRef.current = null
       if (previewRef.current) previewRef.current.srcObject = null
-      dispatch({ type: 'saved', filePath })
+      dispatch({ type: 'saved', ...result })
     } catch (error) {
       dispatch({ type: 'failed', message: normalizeError(error).message })
     }
@@ -485,16 +486,19 @@ export default function App(): React.JSX.Element {
           const failedController = controller
           dispatch({ type: 'stop' })
           void failedController.stop()
-            .then((filePath) => {
+            .then((result) => {
               if (controllerRef.current === failedController) controllerRef.current = null
               if (previewRef.current) previewRef.current.srcObject = null
-              dispatch(filePath
-                ? { type: 'saved', filePath }
+              dispatch(result.filePath
+                ? { type: 'saved', ...result }
                 : { type: 'failed', message: error.message })
             })
             .catch((stopError) => {
               dispatch({ type: 'failed', message: normalizeError(stopError).message })
             })
+        },
+        onAudioExportError: (error) => {
+          setAudioWarning(`음성 파일을 저장하지 못했습니다. 영상 녹화는 계속됩니다. ${error.message}`)
         },
         onWriteError: (error) => {
           suspendPreviewSession()
@@ -518,7 +522,10 @@ export default function App(): React.JSX.Element {
       )
       if (systemAudioFailure) throw systemAudioFailure
       captureStarted = true
-      setActiveCodec(`${result.codec.extension.toUpperCase()} · ${result.codec.label}`)
+      setActiveCodec([
+        `${result.codec.extension.toUpperCase()} · ${result.codec.label}`,
+        result.audioFormatLabel ? `음성 ${result.audioFormatLabel}` : ''
+      ].filter(Boolean).join(' · '))
       if (preferences.includeSystemAudio && !result.hasSystemAudio) {
         setAudioWarning('시스템 오디오 트랙이 감지되지 않았습니다. 권한을 확인해 주세요.')
       }
@@ -794,6 +801,26 @@ export default function App(): React.JSX.Element {
                 </div>
               </div>
             )}
+            <div className="option-row audio-export-option">
+              <span className="option-row__icon"><FileAudio2 size={18} /></span>
+              <span className="option-row__copy">
+                <strong>음성 파일 추출</strong>
+                <small>{audioMode === 'none'
+                  ? '소리를 켜면 별도 오디오 파일을 저장할 수 있습니다.'
+                  : '녹화 완료 시 M4A 또는 WebM 파일로 함께 저장합니다.'}</small>
+              </span>
+              <button
+                className={`toggle ${preferences.saveAudioFile ? 'toggle--on' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={preferences.saveAudioFile}
+                aria-label="음성 파일 별도 저장"
+                disabled={!nativeStateLoaded || isActive || audioMode === 'none'}
+                onClick={() => void updatePreferences({ saveAudioFile: !preferences.saveAudioFile })}
+              >
+                <span className="toggle__thumb" />
+              </button>
+            </div>
             {permissions?.platform === 'darwin' && permissions.microphone !== 'granted' && preferences.includeMicrophone && (
               <button className="permission-hint" type="button" onClick={() => void requestMicrophone()}>
                 <AlertCircle size={15} /> 마이크 권한 확인
@@ -891,8 +918,16 @@ export default function App(): React.JSX.Element {
           {recorderState.status === 'completed' && recorderState.filePath && (
             <div className="result-banner result-banner--success">
               <span className="result-banner__icon"><Check size={17} /></span>
-              <span><strong>안전하게 저장했습니다</strong><small>{formatDuration(elapsedSeconds)} 녹화 파일</small></span>
-              <button type="button" onClick={() => void window.recordingApi.revealRecording(recorderState.filePath!)}>파일 보기</button>
+              <span>
+                <strong>안전하게 저장했습니다</strong>
+                <small>{formatDuration(elapsedSeconds)} 녹화 파일{recorderState.audioFilePath ? ' · 음성 추출 완료' : ''}</small>
+              </span>
+              <span className="result-banner__actions">
+                <button type="button" onClick={() => void window.recordingApi.revealRecording(recorderState.filePath!)}>영상 보기</button>
+                {recorderState.audioFilePath && (
+                  <button type="button" onClick={() => void window.recordingApi.revealRecording(recorderState.audioFilePath!)}>음성 보기</button>
+                )}
+              </span>
             </div>
           )}
           {recorderState.status === 'error' && (

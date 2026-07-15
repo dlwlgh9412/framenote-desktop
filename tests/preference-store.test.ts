@@ -41,6 +41,7 @@ describe('PreferenceStore', () => {
       captureMode: 'broadcast',
       includeSystemAudio: 'yes',
       includeMicrophone: null,
+      saveAudioFile: 'yes',
       microphoneDeviceId: 42
     }))
 
@@ -55,6 +56,7 @@ describe('PreferenceStore', () => {
       captureMode: 'meeting',
       includeSystemAudio: true,
       includeMicrophone: true,
+      saveAudioFile: false,
       microphoneDeviceId: ''
     })
   })
@@ -65,6 +67,7 @@ describe('PreferenceStore', () => {
       codecPreference: 'vp9',
       qualityPreset: 'ultra',
       audioQuality: 'high',
+      saveAudioFile: true,
       includeMicrophone: false
     }))
 
@@ -75,6 +78,7 @@ describe('PreferenceStore', () => {
       audioQuality: 'high',
       countdownSeconds: 3,
       qualityPreset: 'ultra',
+      saveAudioFile: true,
       includeMicrophone: false
     })
   })

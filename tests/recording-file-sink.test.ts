@@ -41,7 +41,7 @@ describe('RecordingFileSink', () => {
 
   it('keeps an in-progress recording visibly partial and atomically publishes it on finish', async () => {
     const sink = new RecordingFileSink()
-    const session = await sink.create(outputDirectory, 'mp4', 'screen')
+    const session = await sink.create(outputDirectory, 'mp4', 'screen', 'video')
 
     expect(await exists(session.filePath)).toBe(false)
     expect(await exists(`${session.filePath}.partial`)).toBe(true)
@@ -56,7 +56,7 @@ describe('RecordingFileSink', () => {
 
   it('removes a controlled-abort partial file instead of leaving a broken normal recording', async () => {
     const sink = new RecordingFileSink()
-    const session = await sink.create(outputDirectory, 'webm', 'meeting')
+    const session = await sink.create(outputDirectory, 'webm', 'meeting', 'video')
     await sink.write(session.id, new Uint8Array([9, 8, 7]))
 
     await sink.abort(session.id)
@@ -69,7 +69,7 @@ describe('RecordingFileSink', () => {
 
   it('preserves the synchronized partial file if publishing the final name fails', async () => {
     const sink = new RecordingFileSink()
-    const session = await sink.create(outputDirectory, 'mp4', 'meeting')
+    const session = await sink.create(outputDirectory, 'mp4', 'meeting', 'video')
     await sink.write(session.id, new Uint8Array([5, 4, 3, 2, 1]))
     await mkdir(session.filePath)
 
@@ -80,5 +80,16 @@ describe('RecordingFileSink', () => {
 
     await sink.abort(session.id)
     expect(await exists(`${session.filePath}.partial`)).toBe(true)
+  })
+
+  it('publishes extracted audio with a distinct audio filename', async () => {
+    const sink = new RecordingFileSink()
+    const session = await sink.create(outputDirectory, 'm4a', 'meeting', 'audio')
+
+    expect(session.filePath).toMatch(/Meeting_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_Audio\.m4a$/)
+    await sink.write(session.id, new Uint8Array([4, 8, 15, 16, 23, 42]))
+    await sink.finish(session.id)
+
+    expect(await readFile(session.filePath)).toEqual(Buffer.from([4, 8, 15, 16, 23, 42]))
   })
 })

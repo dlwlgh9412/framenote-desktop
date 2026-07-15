@@ -3,7 +3,12 @@ import { mkdir, open, rename, stat, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
-import type { CaptureMode, RecordingExtension, RecordingSession } from '../shared/contracts'
+import type {
+  CaptureMode,
+  RecordingArtifactKind,
+  RecordingFileExtension,
+  RecordingSession
+} from '../shared/contracts'
 
 interface OpenRecording {
   handle: FileHandle
@@ -21,11 +26,12 @@ export class RecordingFileSink {
 
   async create(
     outputDirectory: string,
-    extension: RecordingExtension,
-    mode: CaptureMode
+    extension: RecordingFileExtension,
+    mode: CaptureMode,
+    artifact: RecordingArtifactKind
   ): Promise<RecordingSession> {
     await mkdir(outputDirectory, { recursive: true })
-    const recording = await this.openAvailableRecording(outputDirectory, extension, mode)
+    const recording = await this.openAvailableRecording(outputDirectory, extension, mode, artifact)
     const id = randomUUID()
     this.sessions.set(id, recording)
     this.startPowerBlocker()
@@ -80,8 +86,9 @@ export class RecordingFileSink {
 
   private async openAvailableRecording(
     outputDirectory: string,
-    extension: RecordingExtension,
-    mode: CaptureMode
+    extension: RecordingFileExtension,
+    mode: CaptureMode,
+    artifact: RecordingArtifactKind
   ): Promise<OpenRecording> {
     const now = new Date()
     const timestamp = [
@@ -94,10 +101,14 @@ export class RecordingFileSink {
       String(now.getSeconds()).padStart(2, '0')
     ].join('-')
     const prefix = mode === 'meeting' ? 'Meeting' : 'Screen'
+    const artifactSuffix = artifact === 'audio' ? '_Audio' : ''
 
     for (let index = 0; index < 1_000; index += 1) {
       const suffix = index === 0 ? '' : `_${index + 1}`
-      const candidate = join(outputDirectory, `${prefix}_${timestamp}${suffix}.${extension}`)
+      const candidate = join(
+        outputDirectory,
+        `${prefix}_${timestamp}${artifactSuffix}${suffix}.${extension}`
+      )
       if (await this.pathExists(candidate)) continue
       const partialPath = `${candidate}.partial`
       try {

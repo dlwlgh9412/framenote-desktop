@@ -6,7 +6,8 @@
 Renderer (React UI)
   ├─ getDisplayMedia / getUserMedia
   ├─ Web Audio mixer
-  └─ MediaRecorder (Chromium media threads / hardware acceleration)
+  ├─ Video MediaRecorder (Chromium media threads / hardware acceleration)
+  └─ Optional audio-only MediaRecorder (M4A/AAC → WebM/Opus fallback)
                │ 1-second chunks, bounded queue
                ▼
 Preload (narrow, typed IPC bridge)
@@ -19,6 +20,8 @@ Main process
 ```
 
 Chromium은 캡처와 인코딩을 전용 미디어 스레드에서 실행한다. 파일 I/O는 Electron 메인 프로세스의 비동기 파일 API로 분리한다. Renderer는 1초 단위 청크만 보유한다. 대기 데이터가 32MB를 넘으면 회의 구간을 조용히 누락하거나 메모리를 무한히 늘리는 대신 녹화를 종료하고 현재까지의 데이터를 마무리한 뒤 사용자에게 알린다.
+
+음성 파일 추출을 켜면 Web Audio mixer가 만든 동일한 혼합 오디오 트랙을 오디오 전용 MediaRecorder에도 연결한다. 영상과 음성은 독립된 파일 세션과 `.partial` 파일에 기록된다. 영상 저장은 필수 결과이고 음성 파일은 선택 결과이므로, 음성 인코더나 음성 파일 기록만 실패하면 해당 오디오 세션을 폐기하되 영상 녹화와 최종 파일은 유지한다.
 
 화면·창 썸네일 생성은 비교적 비싼 네이티브 작업이므로 최초 로드, 화면 권한이 새로 허용된 시점, 사용자의 명시적 새로고침에서만 실행한다. 동시에 들어온 새로고침은 single-flight로 합쳐 중복 캡처와 대용량 base64 IPC를 막는다. 오디오 장치 목록은 `devicechange` 이벤트로 갱신한다.
 

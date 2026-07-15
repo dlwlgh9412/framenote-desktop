@@ -10,7 +10,8 @@ describe('transitionRecorder', () => {
     const finalizing = transitionRecorder(resumed, { type: 'stop' })
     const completed = transitionRecorder(finalizing, {
       type: 'saved',
-      filePath: '/recordings/meeting.mp4'
+      filePath: '/recordings/meeting.mp4',
+      audioFilePath: '/recordings/meeting-audio.m4a'
     })
 
     expect([
@@ -22,5 +23,6 @@ describe('transitionRecorder', () => {
       completed.status
     ]).toEqual(['preparing', 'recording', 'paused', 'recording', 'finalizing', 'completed'])
     expect(completed.filePath).toBe('/recordings/meeting.mp4')
+    expect(completed.audioFilePath).toBe('/recordings/meeting-audio.m4a')
   })
 })

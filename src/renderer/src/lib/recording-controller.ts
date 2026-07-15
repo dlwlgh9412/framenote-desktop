@@ -1,10 +1,12 @@
 import type {
   AppPreferences,
   CaptureSource,
+  CreateRecordingRequest,
   NativeSystemAudioRequest,
   RecordingSession
 } from '../../../shared/contracts'
 import { getSystemAudioBackend, type SystemAudioBackend } from '../../../shared/audio-capture'
+import { chooseAudioExportProfile } from '../../../shared/audio-export'
 import { getCaptureVideoConstraints } from '../../../shared/capture-constraints'
 import {
   chooseCodec,
@@ -26,9 +28,16 @@ export async function ensureAudioContextRunning(
 export interface RecordingStartResult {
   previewStream: MediaStream
   filePath: string
+  audioFilePath?: string
+  audioFormatLabel?: string
   codec: ResolvedCodecProfile
   hasSystemAudio: boolean
   hasMicrophone: boolean
+}
+
+export interface RecordingStopResult {
+  filePath: string
+  audioFilePath?: string
 }
 
 export interface RecordingControllerCallbacks {
@@ -37,6 +46,7 @@ export interface RecordingControllerCallbacks {
   onStoragePressure: () => void
   onSystemAudioMuted: () => void
   onSystemAudioError: (error: Error) => void
+  onAudioExportError: (error: Error) => void
 }
 
 class ChunkWriter {
@@ -88,16 +98,23 @@ class ChunkWriter {
   }
 }
 
+interface RecordingArtifactPipeline {
+  recorder: MediaRecorder
+  session: RecordingSession
+  writer: ChunkWriter
+}
+
 export class RecordingController {
-  private mediaRecorder?: MediaRecorder
+  private videoPipeline?: RecordingArtifactPipeline
+  private audioPipeline?: RecordingArtifactPipeline
   private screenStream?: MediaStream
   private microphoneStream?: MediaStream
   private mixedStream?: MediaStream
   private audioContext?: AudioContext
-  private session?: RecordingSession
-  private writer?: ChunkWriter
+  private audioFormatLabel?: string
+  private audioExportFailure?: Error
   private storagePressureTriggered = false
-  private stopOperation?: Promise<string>
+  private stopOperation?: Promise<RecordingStopResult>
   private abortOperation?: Promise<void>
   private nativeSystemAudioStarted = false
   private nativeAudioNode?: AudioWorkletNode
@@ -185,25 +202,36 @@ export class RecordingController {
         systemAudioBackend,
         nativeSystemAudioRequest
       )
-      this.session = await window.recordingApi.createRecording({
-        extension: codec.extension,
-        mode: preferences.captureMode
-      })
-      this.writer = new ChunkWriter(
-        this.session.id,
-        (active) => this.handlePressure(active),
+      this.videoPipeline = await this.createArtifactPipeline(
+        {
+          extension: codec.extension,
+          mode: preferences.captureMode,
+          artifact: 'video'
+        },
+        this.mixedStream,
+        {
+          mimeType: codec.mimeType,
+          videoBitsPerSecond: quality.videoBitsPerSecond,
+          audioBitsPerSecond: quality.audioBitsPerSecond
+        },
         this.callbacks.onWriteError
       )
-      this.mediaRecorder = new MediaRecorder(this.mixedStream, {
-        mimeType: codec.mimeType,
-        videoBitsPerSecond: quality.videoBitsPerSecond,
-        audioBitsPerSecond: quality.audioBitsPerSecond
-      })
-      this.bindRecorderEvents()
+
+      if (preferences.saveAudioFile && this.mixedStream.getAudioTracks().length > 0) {
+        await this.prepareAudioExport(preferences, quality.audioBitsPerSecond)
+      }
+
       this.screenStream.getVideoTracks()[0]?.addEventListener('ended', this.callbacks.onCaptureEnded, {
         once: true
       })
-      this.mediaRecorder.start(CHUNK_INTERVAL_MS)
+      if (this.audioPipeline) {
+        try {
+          this.audioPipeline.recorder.start(CHUNK_INTERVAL_MS)
+        } catch (error) {
+          await this.discardAudioExport(normalizeError(error))
+        }
+      }
+      this.videoPipeline.recorder.start(CHUNK_INTERVAL_MS)
 
       const systemAudioTrack = systemAudioBackend === 'electron-loopback'
         ? this.screenStream.getAudioTracks()[0]
@@ -213,7 +241,9 @@ export class RecordingController {
 
       return {
         previewStream: this.mixedStream,
-        filePath: this.session.filePath,
+        filePath: this.videoPipeline.session.filePath,
+        audioFilePath: this.audioPipeline?.session.filePath,
+        audioFormatLabel: this.audioFormatLabel,
         codec,
         hasSystemAudio: systemAudioBackend === 'native-content'
           ? this.nativeSystemAudioStarted
@@ -227,15 +257,29 @@ export class RecordingController {
   }
 
   pause(): void {
-    if (this.mediaRecorder?.state === 'recording') this.mediaRecorder.pause()
+    if (this.videoPipeline?.recorder.state === 'recording') this.videoPipeline.recorder.pause()
+    if (this.audioPipeline?.recorder.state === 'recording') {
+      try {
+        this.audioPipeline.recorder.pause()
+      } catch (error) {
+        this.handleAudioExportError(normalizeError(error))
+      }
+    }
   }
 
   resume(): void {
-    if (this.mediaRecorder?.state === 'paused') this.mediaRecorder.resume()
+    if (this.videoPipeline?.recorder.state === 'paused') this.videoPipeline.recorder.resume()
+    if (this.audioPipeline?.recorder.state === 'paused') {
+      try {
+        this.audioPipeline.recorder.resume()
+      } catch (error) {
+        this.handleAudioExportError(normalizeError(error))
+      }
+    }
   }
 
-  stop(): Promise<string> {
-    if (this.abortOperation) return this.abortOperation.then(() => '')
+  stop(): Promise<RecordingStopResult> {
+    if (this.abortOperation) return this.abortOperation.then(() => ({ filePath: '' }))
     this.stopOperation ??= this.performStop()
     return this.stopOperation
   }
@@ -246,16 +290,31 @@ export class RecordingController {
     return this.abortOperation
   }
 
-  private async performStop(): Promise<string> {
-    await this.stopMediaRecorder()
+  private async performStop(): Promise<RecordingStopResult> {
+    await this.stopMediaRecorders()
 
     try {
-      await this.writer?.flush()
-      return this.session
-        ? await window.recordingApi.finishRecording(this.session.id)
+      await this.videoPipeline?.writer.flush()
+      const filePath = this.videoPipeline
+        ? await window.recordingApi.finishRecording(this.videoPipeline.session.id)
         : ''
+
+      let audioFilePath: string | undefined
+      if (this.audioPipeline) {
+        try {
+          if (this.audioExportFailure) throw this.audioExportFailure
+          await this.audioPipeline.writer.flush()
+          audioFilePath = await window.recordingApi.finishRecording(this.audioPipeline.session.id)
+        } catch (error) {
+          const normalized = normalizeError(error)
+          this.handleAudioExportError(normalized)
+          await window.recordingApi.abortRecording(this.audioPipeline.session.id).catch(() => undefined)
+        }
+      }
+
+      return { filePath, audioFilePath }
     } catch (error) {
-      await this.abortSession()
+      await this.abortSessions()
       throw error
     } finally {
       await this.releaseMediaResources()
@@ -264,30 +323,112 @@ export class RecordingController {
 
   private async performAbort(): Promise<void> {
     try {
-      await this.stopMediaRecorder().catch(() => undefined)
-      await this.writer?.flush().catch(() => undefined)
-      await this.abortSession()
+      await this.stopMediaRecorders().catch(() => undefined)
+      await Promise.all([
+        this.videoPipeline?.writer.flush().catch(() => undefined),
+        this.audioPipeline?.writer.flush().catch(() => undefined)
+      ])
+      await this.abortSessions()
     } finally {
       await this.releaseMediaResources()
     }
   }
 
-  private async stopMediaRecorder(): Promise<void> {
-    if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') return
+  private async stopMediaRecorders(): Promise<void> {
+    if (this.videoPipeline) await this.stopRecorder(this.videoPipeline.recorder)
+    if (this.audioPipeline) {
+      try {
+        await this.stopRecorder(this.audioPipeline.recorder)
+      } catch (error) {
+        this.handleAudioExportError(normalizeError(error))
+      }
+    }
+  }
+
+  private async stopRecorder(recorder: MediaRecorder): Promise<void> {
+    if (recorder.state === 'inactive') return
     const stopped = new Promise<void>((resolve) => {
-      this.mediaRecorder!.addEventListener('stop', () => resolve(), { once: true })
+      recorder.addEventListener('stop', () => resolve(), { once: true })
     })
-    this.mediaRecorder.stop()
+    recorder.stop()
     await stopped
   }
 
-  private bindRecorderEvents(): void {
-    if (!this.mediaRecorder || !this.writer) return
-    this.mediaRecorder.addEventListener('dataavailable', (event) => this.writer?.push(event.data))
-    this.mediaRecorder.addEventListener('error', (event) => {
+  private bindRecorderEvents(
+    recorder: MediaRecorder,
+    writer: ChunkWriter,
+    onError: (error: Error) => void
+  ): void {
+    recorder.addEventListener('dataavailable', (event) => writer.push(event.data))
+    recorder.addEventListener('error', (event) => {
       const recorderError = (event as Event & { error?: DOMException }).error
-      this.callbacks.onWriteError(recorderError ?? new Error('인코더에서 오류가 발생했습니다.'))
+      onError(recorderError ?? new Error('인코더에서 오류가 발생했습니다.'))
     })
+  }
+
+  private async createArtifactPipeline(
+    request: CreateRecordingRequest,
+    stream: MediaStream,
+    options: MediaRecorderOptions,
+    onError: (error: Error) => void
+  ): Promise<RecordingArtifactPipeline> {
+    const session = await window.recordingApi.createRecording(request)
+    const writer = new ChunkWriter(
+      session.id,
+      (active) => this.handlePressure(active),
+      onError
+    )
+    try {
+      const recorder = new MediaRecorder(stream, options)
+      this.bindRecorderEvents(recorder, writer, onError)
+      return { recorder, session, writer }
+    } catch (error) {
+      await window.recordingApi.abortRecording(session.id).catch(() => undefined)
+      throw error
+    }
+  }
+
+  private async prepareAudioExport(
+    preferences: AppPreferences,
+    audioBitsPerSecond: number
+  ): Promise<void> {
+    if (!this.mixedStream) return
+    try {
+      const profile = chooseAudioExportProfile(MediaRecorder.isTypeSupported)
+      this.audioPipeline = await this.createArtifactPipeline(
+        {
+          extension: profile.extension,
+          mode: preferences.captureMode,
+          artifact: 'audio'
+        },
+        new MediaStream(this.mixedStream.getAudioTracks()),
+        {
+          mimeType: profile.mimeType,
+          audioBitsPerSecond
+        },
+        (error) => this.handleAudioExportError(error)
+      )
+      this.audioFormatLabel = profile.label
+    } catch (error) {
+      await this.discardAudioExport(normalizeError(error))
+    }
+  }
+
+  private async discardAudioExport(error: Error): Promise<void> {
+    this.callbacks.onAudioExportError(error)
+    if (this.audioPipeline) {
+      await this.stopRecorder(this.audioPipeline.recorder).catch(() => undefined)
+      await window.recordingApi.abortRecording(this.audioPipeline.session.id).catch(() => undefined)
+    }
+    this.audioPipeline = undefined
+    this.audioFormatLabel = undefined
+    this.audioExportFailure = undefined
+  }
+
+  private handleAudioExportError(error: Error): void {
+    if (this.audioExportFailure) return
+    this.audioExportFailure = error
+    this.callbacks.onAudioExportError(error)
   }
 
   private async createMixedStream(
@@ -360,24 +501,35 @@ export class RecordingController {
   }
 
   private handlePressure(active: boolean): void {
-    if (!this.mediaRecorder) return
     if (active && !this.storagePressureTriggered) {
       this.storagePressureTriggered = true
-      if (this.mediaRecorder.state === 'recording') this.mediaRecorder.pause()
+      if (this.videoPipeline?.recorder.state === 'recording') this.videoPipeline.recorder.pause()
+      if (this.audioPipeline?.recorder.state === 'recording') {
+        try {
+          this.audioPipeline.recorder.pause()
+        } catch (error) {
+          this.handleAudioExportError(normalizeError(error))
+        }
+      }
       this.callbacks.onStoragePressure()
     }
   }
 
   private async cleanupAfterFailure(): Promise<void> {
     try {
-      await this.abortSession()
+      await this.stopMediaRecorders().catch(() => undefined)
+      await this.abortSessions()
     } finally {
       await this.releaseMediaResources()
     }
   }
 
-  private async abortSession(): Promise<void> {
-    if (this.session) await window.recordingApi.abortRecording(this.session.id)
+  private async abortSessions(): Promise<void> {
+    await Promise.all(
+      [this.videoPipeline, this.audioPipeline]
+        .filter((pipeline): pipeline is RecordingArtifactPipeline => Boolean(pipeline))
+        .map(({ session }) => window.recordingApi.abortRecording(session.id))
+    )
   }
 
   private async releaseMediaResources(): Promise<void> {

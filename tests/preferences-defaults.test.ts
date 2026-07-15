@@ -9,7 +9,8 @@ describe('createDefaultPreferences', () => {
       storageMode: 'balanced',
       audioQuality: 'standard',
       countdownSeconds: 3,
-      qualityPreset: 'balanced'
+      qualityPreset: 'balanced',
+      saveAudioFile: false
     })
   })
 })

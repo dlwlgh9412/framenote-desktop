@@ -51,4 +51,12 @@ describe('desktop UI regressions', () => {
     expect(app).toContain('{quality.width} × {quality.height}')
     expect(app).toContain('{quality.frameRate} fps')
   })
+
+  it('offers optional audio extraction and reveals the completed audio file', async () => {
+    const app = await readFile(join(process.cwd(), 'src/renderer/src/App.tsx'), 'utf8')
+    expect(app).toContain('음성 파일 추출')
+    expect(app).toContain('saveAudioFile: !preferences.saveAudioFile')
+    expect(app).toContain('recorderState.audioFilePath')
+    expect(app).toContain('음성 보기')
+  })
 })

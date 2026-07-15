@@ -10,6 +10,7 @@ export type RecorderStatus =
 export interface RecorderState {
   status: RecorderStatus
   filePath?: string
+  audioFilePath?: string
   error?: string
 }
 
@@ -19,7 +20,7 @@ export type RecorderEvent =
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'stop' }
-  | { type: 'saved'; filePath: string }
+  | { type: 'saved'; filePath: string; audioFilePath?: string }
   | { type: 'failed'; message: string }
   | { type: 'reset' }
 
@@ -73,7 +74,11 @@ export function transitionRecorder(state: RecorderState, event: RecorderEvent): 
       return state
     case 'finalizing':
       return event.type === 'saved'
-        ? { status: 'completed', filePath: event.filePath }
+        ? {
+            status: 'completed',
+            filePath: event.filePath,
+            audioFilePath: event.audioFilePath
+          }
         : state
     case 'completed':
     case 'error':

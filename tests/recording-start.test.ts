@@ -13,6 +13,7 @@ const preferences = {
   captureMode: 'screen',
   includeSystemAudio: false,
   includeMicrophone: false,
+  saveAudioFile: false,
   microphoneDeviceId: '',
   outputDirectory: '/tmp'
 } satisfies AppPreferences

@@ -20,7 +20,10 @@ import {
 } from '../shared/audio-capture'
 import {
   IPC_CHANNELS,
+  isAudioRecordingExtension,
   isCaptureMode,
+  isRecordingArtifactKind,
+  isRecordingFileExtension,
   isRecordingExtension,
   sanitizePreferencePatch,
   type AppPreferences,
@@ -362,10 +365,22 @@ function registerIpc(): void {
   ipcMain.handle(IPC_CHANNELS.stopNativeSystemAudio, () => nativeSystemAudio.stop())
 
   ipcMain.handle(IPC_CHANNELS.createRecording, async (_event, request: CreateRecordingRequest) => {
-    if (!isRecordingExtension(request.extension)) throw new Error('Unsupported file extension.')
+    if (!isRecordingFileExtension(request.extension)) throw new Error('Unsupported file extension.')
     if (!isCaptureMode(request.mode)) throw new Error('Unsupported capture mode.')
+    if (!isRecordingArtifactKind(request.artifact)) throw new Error('Unsupported recording artifact.')
+    if (request.artifact === 'video' && !isRecordingExtension(request.extension)) {
+      throw new Error('Unsupported video file extension.')
+    }
+    if (request.artifact === 'audio' && !isAudioRecordingExtension(request.extension)) {
+      throw new Error('Unsupported audio file extension.')
+    }
     const preferences = await preferenceStore.get()
-    return fileSink.create(preferences.outputDirectory, request.extension, request.mode)
+    return fileSink.create(
+      preferences.outputDirectory,
+      request.extension,
+      request.mode,
+      request.artifact
+    )
   })
   ipcMain.handle(IPC_CHANNELS.writeRecordingChunk, (_event, sessionId: string, chunk: Uint8Array) =>
     chunk instanceof Uint8Array && chunk.byteLength <= 64 * 1024 * 1024
